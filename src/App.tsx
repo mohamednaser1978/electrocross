@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { dbInstance } from './db/sqliteEngine';
 import { Component, Device, ComponentDetail, DeviceDetail } from './db/types';
 
