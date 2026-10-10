@@ -10,7 +10,173 @@
   }
 }
 
-/* Custom sleek scrollbar for workshop dark theme */
+:root {
+  color-scheme: dark;
+}
+
+/* ==========================================================================
+   LIGHT MODE DESIGN SYSTEM
+   ========================================================================== */
+html.light {
+  color-scheme: light;
+}
+
+html.light,
+html.light body,
+html.light .min-h-screen {
+  background-color: #f8fafc !important;
+  color: #0f172a !important;
+}
+
+/* Header & Navigation in Light Mode */
+html.light header {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05) !important;
+}
+
+html.light footer {
+  background-color: #f1f5f9 !important;
+  border-color: #e2e8f0 !important;
+  color: #64748b !important;
+}
+
+/* Cards & Containers in Light Mode */
+html.light .bg-slate-900,
+html.light .bg-slate-900\/95,
+html.light .bg-slate-900\/90,
+html.light .bg-slate-900\/80,
+html.light .bg-slate-900\/60,
+html.light .bg-slate-900\/40 {
+  background-color: #ffffff !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.04), 0 2px 4px -2px rgba(0, 0, 0, 0.03) !important;
+}
+
+/* Sub-containers, table rows, and secondary backgrounds */
+html.light .bg-slate-800,
+html.light .bg-slate-800\/80,
+html.light .bg-slate-800\/70,
+html.light .bg-slate-800\/60,
+html.light .bg-slate-800\/40,
+html.light .hover\:bg-slate-850:hover,
+html.light .hover\:bg-slate-800:hover,
+html.light .hover\:bg-slate-800\/70:hover,
+html.light .hover\:bg-slate-700:hover {
+  background-color: #f1f5f9 !important;
+}
+
+/* Deep Base Elements / Code Blocks */
+html.light .bg-slate-950,
+html.light .bg-slate-950\/80,
+html.light .bg-slate-950\/60,
+html.light .bg-slate-950\/50 {
+  background-color: #f1f5f9 !important;
+}
+
+/* Modal Backdrops in Light Mode */
+html.light .fixed.inset-0.bg-black\/80,
+html.light .fixed.inset-0.bg-slate-950\/80 {
+  background-color: rgba(15, 23, 42, 0.6) !important;
+  backdrop-filter: blur(4px) !important;
+}
+
+/* Modals Card Surfaces */
+html.light .fixed .bg-slate-900 {
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+}
+
+/* Borders in Light Mode */
+html.light .border-slate-900,
+html.light .border-slate-800,
+html.light .border-slate-800\/80,
+html.light .border-slate-700,
+html.light .border-slate-700\/80,
+html.light .border-slate-700\/60,
+html.light .border-slate-700\/40,
+html.light .divide-slate-800\/60 > :not(:last-child) {
+  border-color: #e2e8f0 !important;
+}
+
+/* Text Contrast Adjustments */
+html.light .text-slate-100,
+html.light .text-slate-200,
+html.light .text-slate-300 {
+  color: #1e293b !important;
+}
+
+html.light .text-slate-400,
+html.light .text-slate-500 {
+  color: #64748b !important;
+}
+
+html.light .text-white:not(button *):not(.bg-cyan-600 *):not(.bg-cyan-500 *):not(.bg-emerald-600 *):not(.bg-emerald-500 *):not(.bg-amber-600 *):not(.bg-blue-600 *):not(.bg-red-600 *):not(.badge *) {
+  color: #0f172a !important;
+}
+
+/* Form Inputs in Light Mode */
+html.light input:not([type="submit"]):not([type="button"]),
+html.light select,
+html.light textarea {
+  color: #0f172a !important;
+  background-color: #ffffff !important;
+  border-color: #cbd5e1 !important;
+}
+
+html.light input::placeholder,
+html.light textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
+/* Badges Vibrancy in Light Mode */
+html.light .bg-cyan-950\/40,
+html.light .bg-cyan-500\/10 {
+  background-color: #e0f2fe !important;
+}
+html.light .text-cyan-400,
+html.light .text-cyan-300 {
+  color: #0284c7 !important;
+}
+
+html.light .bg-emerald-950\/40,
+html.light .bg-emerald-950\/20,
+html.light .bg-emerald-500\/10 {
+  background-color: #dcfce7 !important;
+}
+html.light .text-emerald-400,
+html.light .text-emerald-300 {
+  color: #16a34a !important;
+}
+
+html.light .bg-amber-950\/40,
+html.light .bg-amber-950\/30,
+html.light .bg-amber-950\/20,
+html.light .bg-amber-500\/10 {
+  background-color: #fef3c7 !important;
+}
+html.light .text-amber-400,
+html.light .text-amber-300 {
+  color: #d97706 !important;
+}
+
+html.light .bg-blue-950\/40,
+html.light .bg-blue-500\/10 {
+  background-color: #dbeafe !important;
+}
+html.light .text-blue-400,
+html.light .text-blue-300 {
+  color: #2563eb !important;
+}
+
+html.light .bg-purple-500\/10 {
+  background-color: #f3e8ff !important;
+}
+html.light .text-purple-400 {
+  color: #9333ea !important;
+}
+
+/* Sleek Scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -29,6 +195,19 @@
   background: #334155;
 }
 
+html.light ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Animations */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -42,4 +221,11 @@
 
 .animate-fade-in {
   animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Smooth Transition on Theme Switch */
+body, header, main, footer, .min-h-screen, div, button, input, select, textarea {
+  transition-property: background-color, border-color, color;
+  transition-duration: 0.2s;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }

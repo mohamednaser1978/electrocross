@@ -63,7 +63,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
             value={query}
             onChange={(e) => onQueryChange(e.target.value)}
             placeholder="ابحث برمز القطعة (VIPer12A, OB2269...) أو موديل الشاشة (LG 32LM550) أو رقم الشاسيه (TP.MS338E)..."
-            className="w-full pr-12 pl-24 py-4 rounded-2xl bg-slate-900/90 border border-slate-750 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/10 focus:outline-none text-white text-base font-medium shadow-xl placeholder:text-slate-500 transition"
+            className="w-full pr-12 pl-24 py-4 rounded-2xl bg-slate-900/90 border border-slate-700/80 focus:border-cyan-400 focus:ring-4 focus:ring-cyan-500/10 focus:outline-none text-slate-100 text-base font-medium shadow-xl placeholder:text-slate-500 transition"
           />
 
           {/* Quick Clear or Keyboard Shortcut Key */}
@@ -110,7 +110,7 @@ export const SearchBar: React.FC<SearchBarProps> = ({
                       {item.type === 'component' ? <Cpu className="w-4 h-4" /> : <Tv className="w-4 h-4" />}
                     </div>
                     <div>
-                      <div className="text-sm font-bold text-white group-hover:text-cyan-300 transition font-mono">
+                      <div className="text-sm font-bold text-slate-100 group-hover:text-cyan-400 transition font-mono">
                         {item.title}
                       </div>
                       <div className="text-xs text-slate-400">

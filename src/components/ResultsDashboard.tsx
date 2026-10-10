@@ -44,7 +44,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
           <Layers className="w-8 h-8" />
         </div>
         <div className="space-y-1">
-          <h3 className="text-lg font-bold text-white">لم يتم العثور على نتائج مطابقة</h3>
+          <h3 className="text-lg font-bold text-slate-100">لم يتم العثور على نتائج مطابقة</h3>
           <p className="text-xs text-slate-400 max-w-md mx-auto">
             تأكد من كتابة رمز القطعة أو موديل الشاشة بدقة، أو قم بتسجيل القطعة أو اللوحة الجديدة الآن.
           </p>
@@ -79,7 +79,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
               <div className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400">
                 <Cpu className="w-5 h-5" />
               </div>
-              <h2 className="text-base sm:text-lg font-black text-white">
+              <h2 className="text-base sm:text-lg font-black text-slate-100">
                 القطع والآيسيهات الإلكترونية ({compResults.length})
               </h2>
             </div>
@@ -106,7 +106,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                     {/* Top row: Part number & Badges */}
                     <div className="flex items-start justify-between gap-2 mb-2">
                       <div>
-                        <div className="text-lg font-black font-mono text-white group-hover:text-cyan-300 transition tracking-tight">
+                        <div className="text-lg font-black font-mono text-slate-100 group-hover:text-cyan-400 transition tracking-tight">
                           {comp.part_number}
                         </div>
                         <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
@@ -166,7 +166,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <span className="px-2 text-xs font-mono font-bold text-white min-w-[1.75rem] text-center">
+                      <span className="px-2 text-xs font-mono font-bold text-slate-100 min-w-[1.75rem] text-center">
                         {comp.stock_quantity}
                       </span>
                       <button
@@ -193,7 +193,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
               <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
                 <Tv className="w-5 h-5" />
               </div>
-              <h2 className="text-base sm:text-lg font-black text-white">
+              <h2 className="text-base sm:text-lg font-black text-slate-100">
                 الأجهزة واللوحات والشاسيهات ({devResults.length})
               </h2>
             </div>
@@ -224,7 +224,7 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                             {dev.device_type}
                           </span>
                         </div>
-                        <div className="text-lg font-black font-mono text-white group-hover:text-blue-300 transition mt-1">
+                        <div className="text-lg font-black font-mono text-slate-100 group-hover:text-blue-400 transition mt-1">
                           {dev.model_number}
                         </div>
                       </div>

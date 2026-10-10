@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Zap, Plus, ChevronDown, Cpu, Tv, Link2, Shuffle 
+  Zap, Plus, ChevronDown, Cpu, Tv, Link2, Shuffle, Sun, Moon 
 } from 'lucide-react';
 
 interface HeaderProps {
+  theme: 'dark' | 'light';
+  onToggleTheme: () => void;
   onOpenAddComponent: () => void;
   onOpenAddDevice: () => void;
   onOpenAddCompatibility: () => void;
@@ -11,6 +13,8 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
+  theme,
+  onToggleTheme,
   onOpenAddComponent,
   onOpenAddDevice,
   onOpenAddCompatibility,
@@ -34,7 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 shadow-xl">
+    <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 shadow-xl transition-colors duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5">
         <div className="flex items-center justify-between gap-3">
           {/* Brand & Logo */}
@@ -46,10 +50,10 @@ export const Header: React.FC<HeaderProps> = ({
 
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xl font-black tracking-tight text-white font-mono">
+                <span className="text-xl font-black tracking-tight text-slate-100 font-mono">
                   Electro<span className="text-cyan-400">Cross</span>
                 </span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
                   v1.0 Pro
                 </span>
               </div>
@@ -60,7 +64,26 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
 
           {/* Quick Actions Header Toolbar - Clean & Focused */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            {/* Theme Toggle Button (Light Mode / Dark Mode) */}
+            <button
+              type="button"
+              onClick={onToggleTheme}
+              className="flex items-center gap-2 px-3 py-2 rounded-xl border border-slate-700/60 bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 hover:text-slate-100 transition-all duration-300 active:scale-95 shadow-sm group cursor-pointer"
+              title={theme === 'dark' ? 'التبديل إلى الوضع النهاري (Light Mode)' : 'التبديل إلى الوضع الليلي (Dark Mode)'}
+              aria-label="تبديل المظهر"
+            >
+              <div className="relative w-4 h-4 flex items-center justify-center">
+                {theme === 'dark' ? (
+                  <Sun className="w-4 h-4 text-amber-400 group-hover:rotate-90 transition-transform duration-500" />
+                ) : (
+                  <Moon className="w-4 h-4 text-cyan-600 group-hover:-rotate-12 transition-transform duration-500" />
+                )}
+              </div>
+              <span className="text-xs font-bold font-mono hidden sm:inline">
+                {theme === 'dark' ? 'نهاري' : 'ليلي'}
+              </span>
+            </button>
             {/* Add Dropdown / Quick Create */}
             <div 
               ref={addMenuRef} 

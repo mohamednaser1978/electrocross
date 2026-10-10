@@ -100,10 +100,35 @@ export default function App() {
     refreshDb();
   };
 
+  // Theme State (Dark Mode & Light Mode) with localStorage persistence
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    return (localStorage.getItem('electrocross_theme') as 'dark' | 'light') || 'dark';
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'light') {
+      root.classList.remove('dark');
+      root.classList.add('light');
+      root.setAttribute('data-theme', 'light');
+    } else {
+      root.classList.remove('light');
+      root.classList.add('dark');
+      root.setAttribute('data-theme', 'dark');
+    }
+    localStorage.setItem('electrocross_theme', theme);
+  }, [theme]);
+
+  const handleToggleTheme = useCallback(() => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  }, []);
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-150 flex flex-col font-sans" dir="rtl">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans transition-colors duration-200" dir="rtl">
       {/* Top Header */}
       <Header
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
         onOpenAddComponent={() => {
           setEditingComponent(null);
           setIsAddComponentOpen(true);

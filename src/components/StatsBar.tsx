@@ -26,7 +26,7 @@ export const StatsBar: React.FC<StatsBarProps> = ({
       >
         <div>
           <div className="text-[11px] font-semibold text-slate-400">القطع المسجلة</div>
-          <div className="text-xl font-black text-white font-mono mt-0.5">{stats.totalComponents}</div>
+          <div className="text-xl font-black text-slate-100 font-mono mt-0.5">{stats.totalComponents}</div>
         </div>
         <div className="p-2.5 rounded-xl bg-cyan-500/10 text-cyan-400">
           <Cpu className="w-5 h-5" />
@@ -44,7 +44,7 @@ export const StatsBar: React.FC<StatsBarProps> = ({
       >
         <div>
           <div className="text-[11px] font-semibold text-slate-400">الأجهزة والشاسيهات</div>
-          <div className="text-xl font-black text-white font-mono mt-0.5">{stats.totalDevices}</div>
+          <div className="text-xl font-black text-slate-100 font-mono mt-0.5">{stats.totalDevices}</div>
         </div>
         <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-400">
           <Tv className="w-5 h-5" />
