@@ -1,0 +1,6 @@
+{
+  "name": "ElectroCross",
+  "description": "منظومة إدارة توافقية وبدائل القطع الإلكترونية لورش الصيانة - Electronic Component Cross-Referencing & Workshop Inventory",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
