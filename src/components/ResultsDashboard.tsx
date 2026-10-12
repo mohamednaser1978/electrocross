@@ -103,18 +103,35 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                   className="group relative p-4 rounded-2xl bg-slate-900/80 hover:bg-slate-850 border border-slate-800 hover:border-cyan-500/50 shadow-lg hover:shadow-cyan-950/30 transition-all duration-200 cursor-pointer flex flex-col justify-between"
                 >
                   <div>
-                    {/* Top row: Part number & Badges */}
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div>
-                        <div className="text-lg font-black font-mono text-slate-100 group-hover:text-cyan-400 transition tracking-tight">
-                          {comp.part_number}
-                        </div>
-                        <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
-                          <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[11px]">
-                            {comp.package_type || 'DIP'}
-                          </span>
-                          <span>•</span>
-                          <span>{comp.category}</span>
+                    {/* Top row: Part number & Badges & Photo */}
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex items-start gap-3 min-w-0">
+                        {comp.image_url ? (
+                          <div className="relative shrink-0 overflow-hidden rounded-xl border border-cyan-500/30 bg-slate-950 shadow-md">
+                            <img
+                              src={comp.image_url}
+                              alt={comp.part_number}
+                              className="w-12 h-12 object-cover group-hover:scale-110 transition-transform duration-300"
+                              loading="lazy"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-11 h-11 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-cyan-400 shrink-0">
+                            <Cpu className="w-5 h-5" />
+                          </div>
+                        )}
+
+                        <div className="min-w-0">
+                          <div className="text-lg font-black font-mono text-slate-100 group-hover:text-cyan-400 transition tracking-tight truncate">
+                            {comp.part_number}
+                          </div>
+                          <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5">
+                            <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[11px]">
+                              {comp.package_type || 'DIP'}
+                            </span>
+                            <span>•</span>
+                            <span className="truncate">{comp.category}</span>
+                          </div>
                         </div>
                       </div>
 
@@ -214,18 +231,36 @@ export const ResultsDashboard: React.FC<ResultsDashboardProps> = ({
                   className="group relative p-4 rounded-2xl bg-slate-900/80 hover:bg-slate-850 border border-slate-800 hover:border-blue-500/50 shadow-lg hover:shadow-blue-950/30 transition-all duration-200 cursor-pointer flex flex-col justify-between"
                 >
                   <div>
-                    <div className="flex items-start justify-between gap-2 mb-2">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-xs font-bold">
-                            {dev.brand}
-                          </span>
-                          <span className="text-xs text-slate-400">
-                            {dev.device_type}
-                          </span>
-                        </div>
-                        <div className="text-lg font-black font-mono text-slate-100 group-hover:text-blue-400 transition mt-1">
-                          {dev.model_number}
+                    {/* Top row: Brand, Model & Board Photo */}
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex items-start gap-3 min-w-0">
+                        {dev.image_url ? (
+                          <div className="relative shrink-0 overflow-hidden rounded-xl border border-blue-500/30 bg-slate-950 shadow-md">
+                            <img
+                              src={dev.image_url}
+                              alt={dev.model_number}
+                              className="w-12 h-12 object-cover group-hover:scale-110 transition-transform duration-300"
+                              loading="lazy"
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-11 h-11 rounded-xl bg-slate-800/80 border border-slate-700/60 flex items-center justify-center text-blue-400 shrink-0">
+                            <Tv className="w-5 h-5" />
+                          </div>
+                        )}
+
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-xs font-bold">
+                              {dev.brand}
+                            </span>
+                            <span className="text-xs text-slate-400">
+                              {dev.device_type}
+                            </span>
+                          </div>
+                          <div className="text-base sm:text-lg font-black font-mono text-slate-100 group-hover:text-blue-400 transition mt-0.5 truncate">
+                            {dev.model_number}
+                          </div>
                         </div>
                       </div>
                     </div>

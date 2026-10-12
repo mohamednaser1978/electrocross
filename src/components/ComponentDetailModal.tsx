@@ -55,9 +55,21 @@ export const ComponentDetailModal: React.FC<ComponentDetailModalProps> = ({
         {/* Modal Header */}
         <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 p-5 border-b border-slate-700/80 flex items-start justify-between">
           <div className="flex items-start gap-3.5">
-            <div className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-inner">
-              <Cpu className="w-8 h-8" />
-            </div>
+            {detail.image_url ? (
+              <div className="relative group/img shrink-0">
+                <img
+                  src={detail.image_url}
+                  alt={detail.part_number}
+                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border border-cyan-500/40 bg-slate-950 shadow-lg cursor-pointer hover:scale-105 transition-transform"
+                  onClick={() => window.open(detail.image_url, '_blank')}
+                  title="انقر لفتح الصورة بالحجم الكامل"
+                />
+              </div>
+            ) : (
+              <div className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-inner shrink-0">
+                <Cpu className="w-8 h-8" />
+              </div>
+            )}
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-black text-white font-mono tracking-tight">

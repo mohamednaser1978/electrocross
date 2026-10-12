@@ -229,3 +229,106 @@ body, header, main, footer, .min-h-screen, div, button, input, select, textarea 
   transition-duration: 0.2s;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* ==========================================================================
+   PRINT SPECIFICATION & A4 ONE-PAGE INVOICE STYLING
+   ========================================================================== */
+@page {
+  size: A4 portrait;
+  margin: 12mm 15mm;
+}
+
+@media print {
+  :root {
+    color-scheme: light !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    transition: none !important;
+    animation: none !important;
+  }
+
+  html,
+  body {
+    color-scheme: light !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  #root,
+  .min-h-screen,
+  .invoice-modal-overlay,
+  .invoice-modal-card,
+  .report-modal-overlay,
+  .report-modal-card {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* Completely hide all navigation, headers, main app body, and footers */
+  header,
+  main,
+  footer,
+  nav,
+  .print\:hidden,
+  .print-hidden {
+    display: none !important;
+  }
+
+  /* Printable invoice and report sheets: full-width A4 presentation with elegant margins */
+  #printable-invoice,
+  #printable-report {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #0f172a !important;
+    page-break-after: auto !important;
+    break-after: auto !important;
+  }
+
+  /* Official Invoice Framed Container */
+  .invoice-paper-sheet {
+    border: 2px solid #0f172a !important;
+    border-radius: 14px !important;
+    padding: 22px 24px !important;
+    margin: 0 !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    box-sizing: border-box !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-shadow: none !important;
+  }
+
+  /* Avoid page breaks inside invoice segments */
+  .avoid-break {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+}

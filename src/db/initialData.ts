@@ -1,4 +1,4 @@
-import { Component, Device, Compatibility, Equivalent } from './types';
+import { Component, Device, Compatibility, Equivalent, WorkshopSettings, Customer, Supplier, Technician, Purchase, Sale } from './types';
 
 export const INITIAL_COMPONENTS: Component[] = [
   // --- 1. PWM & SMPS Controllers ---
@@ -9,7 +9,8 @@ export const INITIAL_COMPONENTS: Component[] = [
     category: 'PWM Controller',
     description: 'مذبذب ومفتاح متكامل لدوائر التغذية الخافضة SMPS بقدرة حتى 13 واط تردد 60kHz، شائع في دوائر الستاندباي والشواحن',
     stock_quantity: 14,
-    bin_location: 'رف A / درج 01 / علبة 1'
+    bin_location: 'رف A / درج 01 / علبة 1',
+    image_url: 'https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=300&q=80'
   },
   {
     id: 2,
@@ -18,7 +19,8 @@ export const INITIAL_COMPONENTS: Component[] = [
     category: 'PWM Controller',
     description: 'مذبذب متكامل بقدرة أعلى حتى 20 واط، بديل قوي ومباشر لـ VIPer12A بحرارة أقل وعمر أطول',
     stock_quantity: 8,
-    bin_location: 'رف A / درج 01 / علبة 2'
+    bin_location: 'رف A / درج 01 / علبة 2',
+    image_url: 'https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&w=300&q=80'
   },
   {
     id: 3,
@@ -36,7 +38,8 @@ export const INITIAL_COMPONENTS: Component[] = [
     category: 'PWM Controller',
     description: 'آي سي مذبذب نبضي عالي الأداء مع حماية OVP لدوائر الباور العكسية Flyback في الشاشات الصينية وأجهزة الاستقبال',
     stock_quantity: 3,
-    bin_location: 'رف A / درج 04 / علبة 3'
+    bin_location: 'رف A / درج 04 / علبة 3',
+    image_url: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=300&q=80'
   },
   {
     id: 5,
@@ -377,14 +380,16 @@ export const INITIAL_DEVICES: Device[] = [
     device_type: 'شاشة ذكية Smart TV',
     brand: 'Universal / الصين',
     model_number: 'Universal 32-43 Inch',
-    board_number: 'TP.MS338E.PB801'
+    board_number: 'TP.MS338E.PB801',
+    image_url: 'https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&w=300&q=80'
   },
   {
     id: 2,
     device_type: 'شاشة LED عادية',
     brand: 'Universal / الصين',
     model_number: 'China LED 32 Inch',
-    board_number: 'TP.RD8503.PB816'
+    board_number: 'TP.RD8503.PB816',
+    image_url: 'https://images.unsplash.com/photo-1588508065123-287b28e013da?auto=format&fit=crop&w=300&q=80'
   },
   {
     id: 3,
@@ -400,7 +405,8 @@ export const INITIAL_DEVICES: Device[] = [
     device_type: 'شاشة LED',
     brand: 'LG',
     model_number: '32LM550BPTA',
-    board_number: 'EAX68253901'
+    board_number: 'EAX68253901',
+    image_url: 'https://images.unsplash.com/photo-1555680202-c86f0e12f086?auto=format&fit=crop&w=300&q=80'
   },
   {
     id: 5,
@@ -416,7 +422,8 @@ export const INITIAL_DEVICES: Device[] = [
     device_type: 'شاشة LED 32"',
     brand: 'Samsung',
     model_number: 'UE32J4000',
-    board_number: 'BN44-00801A'
+    board_number: 'BN44-00801A',
+    image_url: 'https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=300&q=80'
   },
   {
     id: 7,
@@ -807,3 +814,312 @@ export const INITIAL_EQUIVALENTS: Equivalent[] = [
     modification_instructions: 'تعديل تغليف (SMD إلى DIP): يتم ثني وتطويل أرجل نسخة الـ DIP-8 لتلحيمها على مسارات الـ SMD السطحية في كروت الغسالات عند عدم توفر النسخة السطحية.'
   }
 ];
+
+// ==========================================
+// 5. إعدادات ورشة الصيانة الافتراضية
+// ==========================================
+export const INITIAL_SETTINGS: WorkshopSettings = {
+  shopName: 'المتحكمات الكهربائية',
+  subTitle: 'لصيانة الأجهزة والمتحكمات الإلكترونية وبدائل القطع',
+  phone: '+218 91 123 4567',
+  address: 'شارع الصناعة - عمارة النور للإلكترونيات - الطابق الأرضي',
+  currency: 'د.ل',
+  invoiceFooterNote: 'القطع الإلكترونية المباعة تخضع للفحص المباشر قبل الاستلام • كفالة الصيانة 15 يوماً على نفس العطل المشخص',
+  warrantyTerms: 'يرجى إبراز رقم السند عند الاستلام. لا يشمل الضمان التلف الناتج عن سوء الاستخدام أو التذبذب الكهربائي الحاد أو كسر البوردة.'
+};
+
+// ==========================================
+// 6. قائمة العملاء الافتراضية
+// ==========================================
+export const INITIAL_CUSTOMERS: Customer[] = [
+  {
+    id: 1,
+    name: 'عميل نقدي / عام',
+    phone: '—',
+    address: 'مباشر في المحل',
+    notes: 'مبيعات نقدية سريعة وزبائن واجهة المحل',
+    createdAt: '2026-01-15'
+  },
+  {
+    id: 2,
+    name: 'م. أحمد السعدي',
+    phone: '0770 112 3344',
+    address: 'بغداد - الكرادة',
+    notes: 'فني صيانة شاشات وأجهزة منزلية معتاد',
+    createdAt: '2026-02-10'
+  },
+  {
+    id: 3,
+    name: 'ورشة الأمل للأنظمة والتكييف',
+    phone: '0780 998 7766',
+    address: 'البصرة - حي الجزائر',
+    notes: 'إصلاح كروت مكيفات سبليت وإنفرتر',
+    createdAt: '2026-02-20'
+  },
+  {
+    id: 4,
+    name: 'الأستاذ حيدر الموسوي',
+    phone: '0750 443 2211',
+    address: 'النجف الأشرف - حي السعد',
+    notes: 'صيانة كارت غسالة ومجفف أوتوماتيك',
+    createdAt: '2026-03-05'
+  }
+];
+
+// ==========================================
+// 7. قائمة الموردين الافتراضية
+// ==========================================
+export const INITIAL_SUPPLIERS: Supplier[] = [
+  {
+    id: 1,
+    name: 'شركة النور للتجهيزات والقطع الإلكترونية',
+    company: 'Al-Noor Electronics Co.',
+    phone: '0771 888 9900',
+    address: 'شارع الصناعة - مجمع الرواد التجاري',
+    notes: 'مورد معتمد لمتحكمات SMPS والآيسيهات الأصلية',
+    createdAt: '2026-01-01'
+  },
+  {
+    id: 2,
+    name: 'توريدات دبي للترانزستور والمكثفات',
+    company: 'Dubai Tech Components',
+    phone: '0782 555 4433',
+    address: 'شارع الرشيد - ساحة الوثبة',
+    notes: 'توريد ترانزستورات MOSFET و IGBT ودايودات شوتكي',
+    createdAt: '2026-01-10'
+  },
+  {
+    id: 3,
+    name: 'الرواد للميكروكنترولر والمبرمجات',
+    company: 'Al-Rowad Microcontrollers',
+    phone: '0750 111 2233',
+    address: 'أربيل - مجمع تكنولوجيا المعلومات',
+    notes: 'توريد وحدات ATmega والمبرمجات CH341 و RT809H',
+    createdAt: '2026-02-01'
+  }
+];
+
+// ==========================================
+// 7.5. قائمة مهندسي وفنيي الصيانة الافتراضية
+// ==========================================
+export const INITIAL_TECHNICIANS: Technician[] = [
+  {
+    id: 1,
+    name: 'م. سرمد الكرخي',
+    phone: '0770 123 9988',
+    specialty: 'دوائر التغذية SMPS وشاشات العرض الذكية LED',
+    notes: 'خبير في فحص وتعديل آيسيهات الباور ومساطر الليد والتغذية النبضية',
+    createdAt: '2026-01-01'
+  },
+  {
+    id: 2,
+    name: 'م. علي البصري',
+    phone: '0780 445 6677',
+    specialty: 'كروت التكييف والسبليت والإنفرتر',
+    notes: 'متخصص في تشخيص أكواد الأعطال E1-E6 ودوائر المروحة ومحركات BLDC',
+    createdAt: '2026-01-15'
+  },
+  {
+    id: 3,
+    name: 'م. عمر الليبي',
+    phone: '091 234 5678',
+    specialty: 'كروت الغسالات الأوتوماتيك والإنفرتر المنزلي',
+    notes: 'صيانة كروت الغسالات الدايركت درايف وبوردات التحكم الرقمية',
+    createdAt: '2026-02-01'
+  }
+];
+
+// ==========================================
+// 8. فواتير المشتريات وتوريد المخزون الافتراضية
+// ==========================================
+export const INITIAL_PURCHASES: Purchase[] = [
+  {
+    id: 1,
+    invoiceNumber: 'PUR-2026-0101',
+    supplierId: 1,
+    supplierName: 'شركة النور للتجهيزات والقطع الإلكترونية',
+    date: '2026-03-01',
+    totalAmount: 166,
+    paidAmount: 166,
+    paymentStatus: 'paid',
+    notes: 'توريد شحنة جديدة من آيسيهات الباور VIPer و OB2269 (مسددة بالكامل نقدياً)',
+    items: [
+      { id: 1, purchaseId: 1, componentId: 1, partNumber: 'VIPer12A', quantity: 15, unitCost: 6, salePrice: 12, totalCost: 90 },
+      { id: 2, purchaseId: 1, componentId: 2, partNumber: 'VIPer22A', quantity: 10, unitCost: 7, salePrice: 15, totalCost: 70 },
+      { id: 3, purchaseId: 1, componentId: 4, partNumber: 'OB2269CP', quantity: 1, unitCost: 6, salePrice: 14, totalCost: 6 },
+    ]
+  },
+  {
+    id: 2,
+    invoiceNumber: 'PUR-2026-0102',
+    supplierId: 2,
+    supplierName: 'توريدات دبي للترانزستور والمكثفات',
+    date: '2026-03-15',
+    totalAmount: 216,
+    paidAmount: 100,
+    paymentStatus: 'partial',
+    notes: 'توريد مكثفات ضغط عالي وموسفت FQP10N60C (دفعة 100 د.ل والمتبقي بذمتنا 116 د.ل)',
+    items: [
+      { id: 4, purchaseId: 2, componentId: 27, partNumber: '100uF/450V', quantity: 12, unitCost: 8, salePrice: 15, totalCost: 96 },
+      { id: 5, purchaseId: 2, componentId: 21, partNumber: 'FQP10N60C', quantity: 10, unitCost: 12, salePrice: 20, totalCost: 120 },
+    ]
+  }
+];
+
+// ==========================================
+// 9. عمليات المبيعات (المباشرة والمرتبطة بالصيانة) بالدينار الليبي د.ل
+// ==========================================
+export const INITIAL_SALES: Sale[] = [
+  // 1. مبيعات مباشرة (بيع قطع إلكترونية بدون صيانة)
+  {
+    id: 1,
+    invoiceNumber: 'INV-2026-001',
+    saleType: 'direct',
+    customerId: 1,
+    customerName: 'عميل نقدي / عام',
+    customerPhone: '—',
+    date: '2026-03-18',
+    items: [
+      { id: 1, componentId: 1, partNumber: 'VIPer12A', quantity: 2, unitPrice: 12, unitCost: 6, totalPrice: 24, totalCost: 12 },
+      { id: 2, componentId: 19, partNumber: 'PC817', quantity: 3, unitPrice: 3, unitCost: 1, totalPrice: 9, totalCost: 3 },
+    ],
+    partsTotal: 33,
+    discount: 0,
+    totalAmount: 33,
+    totalCost: 15,
+    profit: 18,
+    paidAmount: 33,
+    paymentStatus: 'paid',
+    notes: 'شراء مباشر لقطع صيانة باور سبلاي'
+  },
+  {
+    id: 2,
+    invoiceNumber: 'INV-2026-002',
+    saleType: 'direct',
+    customerId: 2,
+    customerName: 'م. أحمد السعدي',
+    customerPhone: '091 112 3344',
+    date: '2026-03-22',
+    items: [
+      { id: 3, componentId: 21, partNumber: 'FQP10N60C', quantity: 2, unitPrice: 20, unitCost: 12, totalPrice: 40, totalCost: 24 },
+      { id: 4, componentId: 7, partNumber: 'UC3842B', quantity: 1, unitPrice: 10, unitCost: 5, totalPrice: 10, totalCost: 5 },
+    ],
+    partsTotal: 50,
+    discount: 5,
+    totalAmount: 45,
+    totalCost: 29,
+    profit: 16,
+    paidAmount: 45,
+    paymentStatus: 'paid',
+    notes: 'خصم خاص لفني صيانة معتمد'
+  },
+
+  // 2. مبيعات مرتبطة بعملية صيانة متكاملة
+  {
+    id: 3,
+    invoiceNumber: 'MNT-2026-001',
+    saleType: 'maintenance',
+    customerId: 4,
+    customerName: 'الأستاذ حيدر الموسوي',
+    customerPhone: '092 443 2211',
+    date: '2026-03-25',
+    maintenance: {
+      deviceType: 'كارت غسالة أوتوماتيك',
+      brand: 'LG',
+      modelOrBoard: 'Inverter Direct Drive - EBR7894',
+      serialOrChassis: 'SN-LG-88721',
+      faultDescription: 'الجهاز قاطع كهرباء تماماً، انفجار في دائرة التغذية الخافضة LNK304 وتلف مقاومة الفيوز ومكثف الترشيح',
+      technicianName: 'م. سرمد الكرخي',
+      technicianFee: 95, // أجرة الفني والتركيب بالدينار الليبي
+      extraServicesDescription: 'تنظيف كيميائي للبوردة وإعادة لحام حراري وقائي لمسارات الباور ومراجعة ريليهات الموتور',
+      extraServicesFee: 20, // رسوم خدمات إضافية على العميل
+      extraExpensesCost: 5, // تكلفة المواد المستخدمة
+      status: 'delivered',
+      receivedDate: '2026-03-24',
+      deliveryDate: '2026-03-25'
+    },
+    items: [
+      { id: 5, componentId: 12, partNumber: 'LNK304GN', quantity: 1, unitPrice: 20, unitCost: 8, totalPrice: 20, totalCost: 8 },
+      { id: 6, componentId: 27, partNumber: '100uF/450V', quantity: 1, unitPrice: 15, unitCost: 6, totalPrice: 15, totalCost: 6 },
+    ],
+    partsTotal: 35,
+    discount: 0,
+    totalAmount: 150, // 35 قطع + 95 أجرة + 20 خدمات
+    totalCost: 19,   // 14 تكلفة قطع + 5 مصاريف
+    profit: 131,     // 150 - 19
+    paidAmount: 150,
+    paymentStatus: 'paid',
+    notes: 'تم فحص الكارت على طاولة الاختبار بنجاح وتسليمه للعميل مع ضمان 15 يوماً'
+  },
+  {
+    id: 4,
+    invoiceNumber: 'MNT-2026-002',
+    saleType: 'maintenance',
+    customerId: 3,
+    customerName: 'ورشة الأمل للأنظمة والتكييف',
+    customerPhone: '091 998 7766',
+    date: '2026-03-28',
+    maintenance: {
+      deviceType: 'كارت مكيف سبليت إنفرتر',
+      brand: 'Media (ميديا)',
+      modelOrBoard: 'CE-KFR35GW/I1Y',
+      serialOrChassis: 'MD-2023-4410',
+      faultDescription: 'ظهور كود خطأ E1 على الشاشة، توقف التغذية النبضية بسبب شورت في آي سي VIPer22A ودايود الفوتوكبلر',
+      technicianName: 'م. علي البصري',
+      technicianFee: 75,
+      extraServicesDescription: 'فحص مجهري لمقاومات الـ SMD وقياس استقرار الفولتيات 12V و 5V بالأوسيلوسكوب',
+      extraServicesFee: 20,
+      extraExpensesCost: 2,
+      status: 'ready',
+      receivedDate: '2026-03-27'
+    },
+    items: [
+      { id: 7, componentId: 2, partNumber: 'VIPer22A', quantity: 1, unitPrice: 15, unitCost: 7, totalPrice: 15, totalCost: 7 },
+      { id: 8, componentId: 19, partNumber: 'PC817', quantity: 1, unitPrice: 4, unitCost: 1, totalPrice: 4, totalCost: 1 },
+    ],
+    partsTotal: 19,
+    discount: 0,
+    totalAmount: 114, // 19 قطع + 75 أجرة + 20 خدمات
+    totalCost: 10,   // 8 تكلفة قطع + 2 مصاريف
+    profit: 104,
+    paidAmount: 60,
+    paymentStatus: 'partial',
+    notes: 'تم استلام عربون 60 د.ل، والمتبقي 54 د.ل عند الاستلام'
+  },
+  {
+    id: 5,
+    invoiceNumber: 'MNT-2026-003',
+    saleType: 'maintenance',
+    customerId: 2,
+    customerName: 'م. أحمد السعدي',
+    customerPhone: '091 112 3344',
+    date: '2026-04-02',
+    maintenance: {
+      deviceType: 'شاشة تلفزيون 55 بوصة LED',
+      brand: 'Samsung',
+      modelOrBoard: 'UA55NU7100 - كارت باور L55E7_KHS',
+      serialOrChassis: 'SM-55-90112',
+      faultDescription: 'شورت في مرحلة التقطيع الرئيسية PFC، تلف ترانزستور الموسفت FQP10N60C وآي سي التحكم OB2269CP',
+      technicianName: 'م. سرمد الكرخي',
+      technicianFee: 110,
+      extraServicesDescription: 'تعديل حماية تيار مسطرة الليدات (Current Limiter Modification) لتقليل إجهاد الباور وتطويل عمر الشاشة',
+      extraServicesFee: 35,
+      extraExpensesCost: 8,
+      status: 'in_progress',
+      receivedDate: '2026-04-02'
+    },
+    items: [
+      { id: 9, componentId: 21, partNumber: 'FQP10N60C', quantity: 1, unitPrice: 24, unitCost: 12, totalPrice: 24, totalCost: 12 },
+      { id: 10, componentId: 4, partNumber: 'OB2269CP', quantity: 1, unitPrice: 14, unitCost: 6, totalPrice: 14, totalCost: 6 },
+    ],
+    partsTotal: 38,
+    discount: 0,
+    totalAmount: 183, // 38 قطع + 110 أجرة + 35 خدمات
+    totalCost: 26,   // 18 تكلفة قطع + 8 مصاريف
+    profit: 157,
+    paidAmount: 0,
+    paymentStatus: 'unpaid',
+    notes: 'الجهاز قيد الصيانة والاختبار الحراري على طاولة الورشة'
+  }
+];
+

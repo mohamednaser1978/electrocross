@@ -1,13 +1,63 @@
-import { Component, Device, Compatibility, Equivalent, ComponentDetail, DeviceDetail, SearchResultItem, WorkshopStats } from './types';
-import { INITIAL_COMPONENTS, INITIAL_DEVICES, INITIAL_COMPATIBILITIES, INITIAL_EQUIVALENTS } from './initialData';
+import { 
+  Component, Device, Compatibility, Equivalent, 
+  ComponentDetail, DeviceDetail, SearchResultItem, WorkshopStats,
+  WorkshopSettings, Customer, Supplier, Technician, Purchase, Sale, MaintenanceStatus, FinancialStats 
+} from './types';
+import { 
+  INITIAL_COMPONENTS, INITIAL_DEVICES, INITIAL_COMPATIBILITIES, INITIAL_EQUIVALENTS,
+  INITIAL_SETTINGS, INITIAL_CUSTOMERS, INITIAL_SUPPLIERS, INITIAL_TECHNICIANS, INITIAL_PURCHASES, INITIAL_SALES 
+} from './initialData';
 
 const STORAGE_KEY_PREFIX = 'electrocross_db_v2_';
+
+// Helper to provide realistic default prices for components if not set (Libyan Dinar د.ل)
+function assignDefaultPrices(comp: Component): Component {
+  if (comp.cost_price !== undefined && comp.sale_price !== undefined && comp.cost_price <= 100) {
+    return comp;
+  }
+  let cost = 4;
+  let sale = 9;
+  const cat = (comp.category || '').toLowerCase();
+  if (cat.includes('pwm') || cat.includes('controller') || cat.includes('switcher')) {
+    cost = 6;
+    sale = 14;
+  } else if (cat.includes('mosfet') || cat.includes('transistor') || cat.includes('igbt')) {
+    cost = 10;
+    sale = 22;
+  } else if (cat.includes('capacitor') || cat.includes('مكثف')) {
+    cost = 5;
+    sale = 10;
+  } else if (cat.includes('microcontroller') || cat.includes('متحكم') || cat.includes('atmega')) {
+    cost = 20;
+    sale = 45;
+  } else if (cat.includes('regulator') || cat.includes('منظم')) {
+    cost = 3;
+    sale = 7;
+  } else if (cat.includes('optocoupler') || cat.includes('فوتوكبلر')) {
+    cost = 1.5;
+    sale = 4;
+  }
+  return {
+    ...comp,
+    cost_price: comp.cost_price && comp.cost_price <= 100 ? comp.cost_price : cost,
+    sale_price: comp.sale_price && comp.sale_price <= 100 ? comp.sale_price : sale,
+  };
+}
 
 export class ElectroCrossDB {
   private components: Component[] = [];
   private devices: Device[] = [];
   private compatibilities: Compatibility[] = [];
   private equivalents: Equivalent[] = [];
+
+  // Business Modules State
+  private settings: WorkshopSettings = INITIAL_SETTINGS;
+  private customers: Customer[] = [];
+  private suppliers: Supplier[] = [];
+  private technicians: Technician[] = [];
+  private purchases: Purchase[] = [];
+  private sales: Sale[] = [];
+
   private isInitialized = false;
 
   constructor() {
@@ -22,18 +72,71 @@ export class ElectroCrossDB {
       const equivStr = localStorage.getItem(`${STORAGE_KEY_PREFIX}equivalents`);
 
       if (compStr && devStr && compatsStr && equivStr) {
-        this.components = JSON.parse(compStr);
-        this.devices = JSON.parse(devStr);
+        const initCompMap = new Map(INITIAL_COMPONENTS.map(c => [c.id, c]));
+        this.components = JSON.parse(compStr).map((c: Component) => {
+          const init = initCompMap.get(c.id);
+          return assignDefaultPrices({
+            ...c,
+            image_url: c.image_url || init?.image_url,
+          });
+        });
+
+        const initDevMap = new Map(INITIAL_DEVICES.map(d => [d.id, d]));
+        this.devices = JSON.parse(devStr).map((d: Device) => {
+          const init = initDevMap.get(d.id);
+          return {
+            ...d,
+            image_url: d.image_url || init?.image_url,
+          };
+        });
+
         this.compatibilities = JSON.parse(compatsStr);
         this.equivalents = JSON.parse(equivStr);
-        this.isInitialized = true;
-        return;
+      } else {
+        this.components = JSON.parse(JSON.stringify(INITIAL_COMPONENTS)).map(assignDefaultPrices);
+        this.devices = JSON.parse(JSON.stringify(INITIAL_DEVICES));
+        this.compatibilities = JSON.parse(JSON.stringify(INITIAL_COMPATIBILITIES));
+        this.equivalents = JSON.parse(JSON.stringify(INITIAL_EQUIVALENTS));
       }
+
+      // Load Business Modules
+      const settingsStr = localStorage.getItem(`${STORAGE_KEY_PREFIX}settings`);
+      const customersStr = localStorage.getItem(`${STORAGE_KEY_PREFIX}customers`);
+      const suppliersStr = localStorage.getItem(`${STORAGE_KEY_PREFIX}suppliers`);
+      const techStr = localStorage.getItem(`${STORAGE_KEY_PREFIX}technicians`);
+      const purchasesStr = localStorage.getItem(`${STORAGE_KEY_PREFIX}purchases`);
+      const salesStr = localStorage.getItem(`${STORAGE_KEY_PREFIX}sales`);
+
+      this.settings = settingsStr ? JSON.parse(settingsStr) : JSON.parse(JSON.stringify(INITIAL_SETTINGS));
+      this.customers = customersStr ? JSON.parse(customersStr) : JSON.parse(JSON.stringify(INITIAL_CUSTOMERS));
+      this.suppliers = suppliersStr ? JSON.parse(suppliersStr) : JSON.parse(JSON.stringify(INITIAL_SUPPLIERS));
+      this.technicians = techStr ? JSON.parse(techStr) : JSON.parse(JSON.stringify(INITIAL_TECHNICIANS));
+      const rawPurchases = purchasesStr ? JSON.parse(purchasesStr) : JSON.parse(JSON.stringify(INITIAL_PURCHASES));
+      this.purchases = rawPurchases.map((p: any) => ({
+        ...p,
+        paidAmount: typeof p.paidAmount === 'number' ? p.paidAmount : p.totalAmount,
+        paymentStatus: p.paymentStatus || ((typeof p.paidAmount === 'number' ? p.paidAmount : p.totalAmount) >= p.totalAmount ? 'paid' : ((p.paidAmount || 0) > 0 ? 'partial' : 'unpaid')),
+      }));
+      this.sales = salesStr ? JSON.parse(salesStr) : JSON.parse(JSON.stringify(INITIAL_SALES));
+
+      // Automatic migration to Libyan Dinar (د.ل) if currently in Iraqi Dinar or unmigrated
+      const isLydMigrated = localStorage.getItem(`${STORAGE_KEY_PREFIX}migrated_lyd_v3`);
+      if (!isLydMigrated || this.settings.currency !== 'د.ل') {
+        this.settings.currency = 'د.ل';
+        this.settings.phone = '+218 91 123 4567';
+        this.sales = JSON.parse(JSON.stringify(INITIAL_SALES));
+        this.purchases = JSON.parse(JSON.stringify(INITIAL_PURCHASES));
+        this.components = this.components.map(assignDefaultPrices);
+        localStorage.setItem(`${STORAGE_KEY_PREFIX}migrated_lyd_v3`, 'true');
+      }
+
+      this.isInitialized = true;
+      this.saveToStorage();
+      return;
     } catch {
       console.warn('Storage read failed, initializing with seed data');
+      this.resetToSeed();
     }
-
-    this.resetToSeed();
   }
 
   public saveToStorage() {
@@ -42,16 +145,31 @@ export class ElectroCrossDB {
       localStorage.setItem(`${STORAGE_KEY_PREFIX}devices`, JSON.stringify(this.devices));
       localStorage.setItem(`${STORAGE_KEY_PREFIX}compatibilities`, JSON.stringify(this.compatibilities));
       localStorage.setItem(`${STORAGE_KEY_PREFIX}equivalents`, JSON.stringify(this.equivalents));
+
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}settings`, JSON.stringify(this.settings));
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}customers`, JSON.stringify(this.customers));
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}suppliers`, JSON.stringify(this.suppliers));
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}technicians`, JSON.stringify(this.technicians));
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}purchases`, JSON.stringify(this.purchases));
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}sales`, JSON.stringify(this.sales));
     } catch (e) {
       console.error('Failed to save to localStorage:', e);
     }
   }
 
   public resetToSeed() {
-    this.components = JSON.parse(JSON.stringify(INITIAL_COMPONENTS));
+    this.components = JSON.parse(JSON.stringify(INITIAL_COMPONENTS)).map(assignDefaultPrices);
     this.devices = JSON.parse(JSON.stringify(INITIAL_DEVICES));
     this.compatibilities = JSON.parse(JSON.stringify(INITIAL_COMPATIBILITIES));
     this.equivalents = JSON.parse(JSON.stringify(INITIAL_EQUIVALENTS));
+
+    this.settings = JSON.parse(JSON.stringify(INITIAL_SETTINGS));
+    this.customers = JSON.parse(JSON.stringify(INITIAL_CUSTOMERS));
+    this.suppliers = JSON.parse(JSON.stringify(INITIAL_SUPPLIERS));
+    this.technicians = JSON.parse(JSON.stringify(INITIAL_TECHNICIANS));
+    this.purchases = JSON.parse(JSON.stringify(INITIAL_PURCHASES));
+    this.sales = JSON.parse(JSON.stringify(INITIAL_SALES));
+
     this.isInitialized = true;
     this.saveToStorage();
   }
@@ -71,6 +189,317 @@ export class ElectroCrossDB {
       outOfStockCount,
       totalStockUnits,
     };
+  }
+
+  // --- Financial & Workshop Business Analytics ---
+  public getFinancialStats(): FinancialStats {
+    let totalRevenue = 0;
+    let directSalesRevenue = 0;
+    let maintenanceRevenue = 0;
+    let totalCost = 0;
+    let totalLaborEarned = 0;
+    let directSalesCount = 0;
+    let maintenanceCount = 0;
+    let activeMaintenanceCount = 0;
+    let completedMaintenanceCount = 0;
+
+    for (const sale of this.sales) {
+      totalRevenue += sale.totalAmount;
+      totalCost += sale.totalCost;
+
+      if (sale.saleType === 'direct') {
+        directSalesRevenue += sale.totalAmount;
+        directSalesCount++;
+      } else {
+        maintenanceRevenue += sale.totalAmount;
+        maintenanceCount++;
+        if (sale.maintenance) {
+          totalLaborEarned += sale.maintenance.technicianFee || 0;
+          if (sale.maintenance.status === 'delivered') {
+            completedMaintenanceCount++;
+          } else {
+            activeMaintenanceCount++;
+          }
+        }
+      }
+    }
+
+    const totalProfit = totalRevenue - totalCost;
+
+    return {
+      totalRevenue,
+      directSalesRevenue,
+      maintenanceRevenue,
+      totalCost,
+      totalProfit,
+      totalLaborEarned,
+      totalSalesCount: this.sales.length,
+      directSalesCount,
+      maintenanceCount,
+      activeMaintenanceCount,
+      completedMaintenanceCount,
+    };
+  }
+
+  // --- Settings Management ---
+  public getSettings(): WorkshopSettings {
+    return { ...this.settings };
+  }
+
+  public updateSettings(newSettings: Partial<WorkshopSettings>): WorkshopSettings {
+    this.settings = {
+      ...this.settings,
+      ...newSettings,
+    };
+    this.saveToStorage();
+    return this.getSettings();
+  }
+
+  public resetSettings(): WorkshopSettings {
+    this.settings = JSON.parse(JSON.stringify(INITIAL_SETTINGS));
+    this.saveToStorage();
+    return this.getSettings();
+  }
+
+  // --- Customers Management ---
+  public getCustomers(): Customer[] {
+    return [...this.customers];
+  }
+
+  public getCustomer(id: number): Customer | undefined {
+    return this.customers.find(c => c.id === id);
+  }
+
+  public addCustomer(data: Omit<Customer, 'id' | 'createdAt'>): Customer {
+    const nextId = this.customers.length > 0 ? Math.max(...this.customers.map(c => c.id)) + 1 : 1;
+    const newCustomer: Customer = {
+      ...data,
+      id: nextId,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    this.customers.push(newCustomer);
+    this.saveToStorage();
+    return newCustomer;
+  }
+
+  public updateCustomer(data: Customer): void {
+    const idx = this.customers.findIndex(c => c.id === data.id);
+    if (idx !== -1) {
+      this.customers[idx] = { ...data };
+      this.saveToStorage();
+    }
+  }
+
+  public deleteCustomer(id: number): void {
+    this.customers = this.customers.filter(c => c.id !== id);
+    this.saveToStorage();
+  }
+
+  // --- Suppliers Management ---
+  public getSuppliers(): Supplier[] {
+    return [...this.suppliers];
+  }
+
+  public getSupplier(id: number): Supplier | undefined {
+    return this.suppliers.find(s => s.id === id);
+  }
+
+  public addSupplier(data: Omit<Supplier, 'id' | 'createdAt'>): Supplier {
+    const nextId = this.suppliers.length > 0 ? Math.max(...this.suppliers.map(s => s.id)) + 1 : 1;
+    const newSupplier: Supplier = {
+      ...data,
+      id: nextId,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    this.suppliers.push(newSupplier);
+    this.saveToStorage();
+    return newSupplier;
+  }
+
+  public updateSupplier(data: Supplier): void {
+    const idx = this.suppliers.findIndex(s => s.id === data.id);
+    if (idx !== -1) {
+      this.suppliers[idx] = { ...data };
+      this.saveToStorage();
+    }
+  }
+
+  public deleteSupplier(id: number): void {
+    this.suppliers = this.suppliers.filter(s => s.id !== id);
+    this.saveToStorage();
+  }
+
+  // --- Technicians / Maintenance Engineers Management ---
+  public getTechnicians(): Technician[] {
+    return [...this.technicians];
+  }
+
+  public getTechnician(id: number): Technician | undefined {
+    return this.technicians.find(t => t.id === id);
+  }
+
+  public addTechnician(data: Omit<Technician, 'id' | 'createdAt'>): Technician {
+    const nextId = this.technicians.length > 0 ? Math.max(...this.technicians.map(t => t.id)) + 1 : 1;
+    const newTech: Technician = {
+      ...data,
+      id: nextId,
+      createdAt: new Date().toISOString().split('T')[0],
+    };
+    this.technicians.push(newTech);
+    this.saveToStorage();
+    return newTech;
+  }
+
+  public updateTechnician(data: Technician): void {
+    const idx = this.technicians.findIndex(t => t.id === data.id);
+    if (idx !== -1) {
+      this.technicians[idx] = { ...data };
+      this.saveToStorage();
+    }
+  }
+
+  public deleteTechnician(id: number): void {
+    this.technicians = this.technicians.filter(t => t.id !== id);
+    this.saveToStorage();
+  }
+
+  // --- Purchases Management (Restocks Components) ---
+  public getPurchases(): Purchase[] {
+    return [...this.purchases].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
+
+  public addPurchase(data: Omit<Purchase, 'id'>): Purchase {
+    const nextId = this.purchases.length > 0 ? Math.max(...this.purchases.map(p => p.id)) + 1 : 1;
+    const paidAmount = typeof data.paidAmount === 'number' ? data.paidAmount : data.totalAmount;
+    const paymentStatus = data.paymentStatus || (paidAmount >= data.totalAmount ? 'paid' : (paidAmount > 0 ? 'partial' : 'unpaid'));
+
+    const newPurchase: Purchase = {
+      ...data,
+      id: nextId,
+      paidAmount,
+      paymentStatus,
+    };
+
+    // Increment inventory stock, update cost price, and update sale price for each component
+    for (const item of newPurchase.items) {
+      const comp = this.components.find(c => c.id === item.componentId);
+      if (comp) {
+        comp.stock_quantity += item.quantity;
+        comp.cost_price = item.unitCost;
+        if (typeof item.salePrice === 'number' && item.salePrice > 0) {
+          comp.sale_price = item.salePrice;
+        }
+      }
+    }
+
+    this.purchases.unshift(newPurchase);
+    this.saveToStorage();
+    return newPurchase;
+  }
+
+  public paySupplierBalance(purchaseId: number, amount: number, paymentDate?: string, notes?: string): Purchase | null {
+    const purchase = this.purchases.find(p => p.id === purchaseId);
+    if (!purchase) return null;
+
+    const currentPaid = typeof purchase.paidAmount === 'number' ? purchase.paidAmount : purchase.totalAmount;
+    const newPaid = Math.min(purchase.totalAmount, Math.max(0, currentPaid + amount));
+    purchase.paidAmount = newPaid;
+    purchase.paymentStatus = (purchase.paidAmount >= purchase.totalAmount) ? 'paid' : (purchase.paidAmount > 0 ? 'partial' : 'unpaid');
+
+    const dateStr = paymentDate || new Date().toISOString().split('T')[0];
+    const logEntry = `[سداد للمورد: ${amount} د.ل بتاريخ ${dateStr}${notes ? ' - ' + notes : ''}]`;
+    purchase.notes = purchase.notes ? `${purchase.notes} | ${logEntry}` : logEntry;
+
+    this.saveToStorage();
+    return purchase;
+  }
+
+  public deletePurchase(id: number): void {
+    this.purchases = this.purchases.filter(p => p.id !== id);
+    this.saveToStorage();
+  }
+
+  // --- Sales Management (Direct & Maintenance) ---
+  public getSales(): Sale[] {
+    return [...this.sales].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }
+
+  public getSale(id: number): Sale | undefined {
+    return this.sales.find(s => s.id === id);
+  }
+
+  public addSale(data: Omit<Sale, 'id'>): Sale {
+    const nextId = this.sales.length > 0 ? Math.max(...this.sales.map(s => s.id)) + 1 : 1;
+
+    // Deduct stock for all items
+    for (const item of data.items) {
+      const comp = this.components.find(c => c.id === item.componentId);
+      if (comp) {
+        comp.stock_quantity = Math.max(0, comp.stock_quantity - item.quantity);
+      }
+    }
+
+    const newSale: Sale = {
+      ...data,
+      id: nextId,
+    };
+
+    this.sales.unshift(newSale);
+    this.saveToStorage();
+    return newSale;
+  }
+
+  public updateSale(updatedSale: Sale): void {
+    const idx = this.sales.findIndex(s => s.id === updatedSale.id);
+    if (idx !== -1) {
+      this.sales[idx] = { ...updatedSale };
+      this.saveToStorage();
+    }
+  }
+
+  public updateMaintenanceStatus(saleId: number, status: MaintenanceStatus): void {
+    const sale = this.sales.find(s => s.id === saleId);
+    if (sale && sale.maintenance) {
+      sale.maintenance.status = status;
+      if (status === 'delivered' && !sale.maintenance.deliveryDate) {
+        sale.maintenance.deliveryDate = new Date().toISOString().split('T')[0];
+        sale.paymentStatus = 'paid';
+        sale.paidAmount = sale.totalAmount;
+      }
+      this.saveToStorage();
+    }
+  }
+
+  public deleteSale(id: number): void {
+    const sale = this.sales.find(s => s.id === id);
+    if (sale) {
+      // Restore inventory stock for the sold items
+      for (const item of sale.items) {
+        const comp = this.components.find(c => c.id === item.componentId);
+        if (comp) {
+          comp.stock_quantity += item.quantity;
+        }
+      }
+      this.sales = this.sales.filter(s => s.id !== id);
+      this.saveToStorage();
+    }
+  }
+
+  public collectCustomerPayment(saleId: number, amount: number, paymentDate?: string, notes?: string): Sale | null {
+    const sale = this.sales.find(s => s.id === saleId);
+    if (!sale) return null;
+
+    const currentPaid = sale.paidAmount || 0;
+    const newPaid = Math.min(sale.totalAmount, Math.max(0, currentPaid + amount));
+    sale.paidAmount = newPaid;
+    sale.paymentStatus = (sale.paidAmount >= sale.totalAmount) ? 'paid' : (sale.paidAmount > 0 ? 'partial' : 'unpaid');
+
+    const dateStr = paymentDate || new Date().toISOString().split('T')[0];
+    const logEntry = `[تحصيل من العميل: ${amount} د.ل بتاريخ ${dateStr}${notes ? ' - ' + notes : ''}]`;
+    sale.notes = sale.notes ? `${sale.notes} | ${logEntry}` : logEntry;
+
+    this.saveToStorage();
+    return sale;
   }
 
   // --- Dual Instant Search ---
@@ -123,6 +552,7 @@ export class ElectroCrossDB {
             stock: comp.stock_quantity,
             binLocation: comp.bin_location,
             matchReason: matchReason || 'قطعة إلكترونية',
+            imageUrl: comp.image_url,
           });
         }
       }
@@ -164,6 +594,7 @@ export class ElectroCrossDB {
             category: dev.device_type,
             boardNumber: dev.board_number,
             matchReason: matchReason || 'جهاز / شاسيه',
+            imageUrl: dev.image_url,
           });
         }
       }
@@ -269,7 +700,7 @@ export class ElectroCrossDB {
     };
   }
 
-  // --- CRUD Operations ---
+  // --- CRUD Operations for Components & Devices ---
   public updateStock(componentId: number, delta: number): number {
     const comp = this.components.find(c => c.id === componentId);
     if (!comp) return 0;
@@ -293,10 +724,10 @@ export class ElectroCrossDB {
     }
 
     const nextId = this.components.length > 0 ? Math.max(...this.components.map(c => c.id)) + 1 : 1;
-    const newComp: Component = {
+    const newComp: Component = assignDefaultPrices({
       ...data,
       id: nextId,
-    };
+    });
     this.components.push(newComp);
     this.saveToStorage();
     return newComp;
@@ -305,7 +736,7 @@ export class ElectroCrossDB {
   public updateComponent(comp: Component): void {
     const idx = this.components.findIndex(c => c.id === comp.id);
     if (idx !== -1) {
-      this.components[idx] = { ...comp };
+      this.components[idx] = assignDefaultPrices({ ...comp });
       this.saveToStorage();
     }
   }
@@ -394,10 +825,11 @@ export class ElectroCrossDB {
     return [...this.equivalents];
   }
 
-  // --- Backup & SQL Generator (Deliverable D) ---
+  // --- Backup & SQL Generator (Comprehensive with New Modules) ---
   public generateSqlDump(): string {
     const lines: string[] = [];
-    lines.push('-- ElectroCross Backup Export');
+    lines.push('-- ElectroCross Workshop Pro Backup Export');
+    lines.push(`-- Workshop: ${this.settings.shopName}`);
     lines.push(`-- Date: ${new Date().toISOString()}`);
     lines.push('PRAGMA foreign_keys = ON;\n');
 
@@ -405,7 +837,11 @@ export class ElectroCrossDB {
     lines.push('DELETE FROM equivalents;');
     lines.push('DELETE FROM compatibilities;');
     lines.push('DELETE FROM devices;');
-    lines.push('DELETE FROM components;\n');
+    lines.push('DELETE FROM components;');
+    lines.push('DELETE FROM customers;');
+    lines.push('DELETE FROM suppliers;');
+    lines.push('DELETE FROM sales;');
+    lines.push('DELETE FROM purchases;\n');
 
     for (const c of this.components) {
       const part = c.part_number.replace(/'/g, "''");
@@ -413,7 +849,10 @@ export class ElectroCrossDB {
       const cat = (c.category || '').replace(/'/g, "''");
       const desc = (c.description || '').replace(/'/g, "''");
       const bin = (c.bin_location || '').replace(/'/g, "''");
-      lines.push(`INSERT INTO components (id, part_number, package_type, category, description, stock_quantity, bin_location) VALUES (${c.id}, '${part}', '${pkg}', '${cat}', '${desc}', ${c.stock_quantity}, '${bin}');`);
+      const img = (c.image_url || '').replace(/'/g, "''");
+      const cost = c.cost_price ?? 0;
+      const sale = c.sale_price ?? 0;
+      lines.push(`INSERT INTO components (id, part_number, package_type, category, description, stock_quantity, bin_location, cost_price, sale_price, image_url) VALUES (${c.id}, '${part}', '${pkg}', '${cat}', '${desc}', ${c.stock_quantity}, '${bin}', ${cost}, ${sale}, '${img}');`);
     }
     lines.push('');
 
@@ -422,7 +861,8 @@ export class ElectroCrossDB {
       const br = d.brand.replace(/'/g, "''");
       const mod = d.model_number.replace(/'/g, "''");
       const bd = (d.board_number || '').replace(/'/g, "''");
-      lines.push(`INSERT INTO devices (id, device_type, brand, model_number, board_number) VALUES (${d.id}, '${dt}', '${br}', '${mod}', '${bd}');`);
+      const img = (d.image_url || '').replace(/'/g, "''");
+      lines.push(`INSERT INTO devices (id, device_type, brand, model_number, board_number, image_url) VALUES (${d.id}, '${dt}', '${br}', '${mod}', '${bd}', '${img}');`);
     }
     lines.push('');
 
@@ -438,15 +878,40 @@ export class ElectroCrossDB {
       const inst = (eq.modification_instructions || '').replace(/'/g, "''");
       lines.push(`INSERT INTO equivalents (id, original_id, substitute_id, equivalence_type, modification_instructions) VALUES (${eq.id}, ${eq.original_id}, ${eq.substitute_id}, '${eq.equivalence_type}', '${inst}');`);
     }
+    lines.push('');
+
+    for (const cust of this.customers) {
+      const name = cust.name.replace(/'/g, "''");
+      const phone = cust.phone.replace(/'/g, "''");
+      const addr = (cust.address || '').replace(/'/g, "''");
+      lines.push(`INSERT INTO customers (id, name, phone, address) VALUES (${cust.id}, '${name}', '${phone}', '${addr}');`);
+    }
+    lines.push('');
+
+    for (const sup of this.suppliers) {
+      const name = sup.name.replace(/'/g, "''");
+      const phone = sup.phone.replace(/'/g, "''");
+      const comp = (sup.company || '').replace(/'/g, "''");
+      lines.push(`INSERT INTO suppliers (id, name, company, phone) VALUES (${sup.id}, '${name}', '${comp}', '${phone}');`);
+    }
+    lines.push('');
+
+    for (const tech of this.technicians) {
+      const name = tech.name.replace(/'/g, "''");
+      const phone = (tech.phone || '').replace(/'/g, "''");
+      const spec = (tech.specialty || '').replace(/'/g, "''");
+      lines.push(`INSERT INTO technicians (id, name, phone, specialty) VALUES (${tech.id}, '${name}', '${phone}', '${spec}');`);
+    }
+    lines.push('');
+
     lines.push('COMMIT;');
 
     return lines.join('\n');
   }
 
-  // --- SQLite Binary Export (Tauri / Electron electro.db compatibility) ---
+  // --- SQLite Binary Export ---
   public async exportSqliteBinary(): Promise<Uint8Array | null> {
     try {
-      // dynamically import sql.js to create the genuine binary electro.db file
       const initSqlJs = (await import('sql.js')).default;
       const SQL = await initSqlJs({
         locateFile: (file: string) => `https://sql.js.org/dist/${file}`,
@@ -454,7 +919,6 @@ export class ElectroCrossDB {
       const db = new SQL.Database();
       const sqlDump = this.generateSqlDump();
       
-      // Execute table creation
       db.run(`
         CREATE TABLE IF NOT EXISTS components (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -463,14 +927,18 @@ export class ElectroCrossDB {
             category TEXT,
             description TEXT,
             stock_quantity INTEGER DEFAULT 0,
-            bin_location TEXT
+            bin_location TEXT,
+            cost_price REAL DEFAULT 0,
+            sale_price REAL DEFAULT 0,
+            image_url TEXT
         );
         CREATE TABLE IF NOT EXISTS devices (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             device_type TEXT NOT NULL,
             brand TEXT NOT NULL,
             model_number TEXT NOT NULL,
-            board_number TEXT
+            board_number TEXT,
+            image_url TEXT
         );
         CREATE TABLE IF NOT EXISTS compatibilities (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -487,9 +955,26 @@ export class ElectroCrossDB {
             equivalence_type TEXT CHECK(equivalence_type IN ('Direct_Drop_In', 'Requires_Modification')),
             modification_instructions TEXT
         );
+        CREATE TABLE IF NOT EXISTS customers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT,
+            address TEXT
+        );
+        CREATE TABLE IF NOT EXISTS suppliers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            company TEXT,
+            phone TEXT
+        );
+        CREATE TABLE IF NOT EXISTS technicians (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            phone TEXT,
+            specialty TEXT
+        );
       `);
 
-      // Execute data population
       db.run(sqlDump);
       const binary = db.export();
       db.close();
@@ -500,9 +985,20 @@ export class ElectroCrossDB {
     }
   }
 
-  public importFromData(data: { components: Component[]; devices: Device[]; compatibilities: Compatibility[]; equivalents: Equivalent[] }) {
+  public importFromData(data: { 
+    components?: Component[]; 
+    devices?: Device[]; 
+    compatibilities?: Compatibility[]; 
+    equivalents?: Equivalent[];
+    settings?: WorkshopSettings;
+    customers?: Customer[];
+    suppliers?: Supplier[];
+    technicians?: Technician[];
+    purchases?: Purchase[];
+    sales?: Sale[];
+  }) {
     if (data.components && Array.isArray(data.components)) {
-      this.components = data.components;
+      this.components = data.components.map(assignDefaultPrices);
     }
     if (data.devices && Array.isArray(data.devices)) {
       this.devices = data.devices;
@@ -512,6 +1008,24 @@ export class ElectroCrossDB {
     }
     if (data.equivalents && Array.isArray(data.equivalents)) {
       this.equivalents = data.equivalents;
+    }
+    if (data.settings) {
+      this.settings = data.settings;
+    }
+    if (data.customers && Array.isArray(data.customers)) {
+      this.customers = data.customers;
+    }
+    if (data.suppliers && Array.isArray(data.suppliers)) {
+      this.suppliers = data.suppliers;
+    }
+    if (data.technicians && Array.isArray(data.technicians)) {
+      this.technicians = data.technicians;
+    }
+    if (data.purchases && Array.isArray(data.purchases)) {
+      this.purchases = data.purchases;
+    }
+    if (data.sales && Array.isArray(data.sales)) {
+      this.sales = data.sales;
     }
     this.saveToStorage();
   }
