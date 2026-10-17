@@ -4,13 +4,14 @@ import {
   Wrench, AlertTriangle, ShieldCheck, BarChart3
 } from 'lucide-react';
 
-export type MainTabType = 'catalog' | 'sales' | 'purchases' | 'customers' | 'suppliers' | 'reports' | 'settings';
+export type MainTabType = 'catalog' | 'maintenance' | 'sales' | 'purchases' | 'customers' | 'suppliers' | 'reports' | 'settings';
 
 interface NavigationTabsProps {
   activeTab: MainTabType;
   onTabChange: (tab: MainTabType) => void;
   lowStockCount: number;
   activeRepairsCount: number;
+  maintenanceActiveCount?: number;
   shopName: string;
 }
 
@@ -19,6 +20,7 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = ({
   onTabChange,
   lowStockCount,
   activeRepairsCount,
+  maintenanceActiveCount = 0,
   shopName,
 }) => {
   const tabs = [
@@ -31,9 +33,17 @@ export const NavigationTabs: React.FC<NavigationTabsProps> = ({
       badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
     },
     {
+      id: 'maintenance' as MainTabType,
+      label: 'الصيانة والأمانات',
+      sublabel: 'استلام • فحص • تسليم',
+      icon: Wrench,
+      badge: maintenanceActiveCount > 0 ? `${maintenanceActiveCount} بالصيانة` : undefined,
+      badgeColor: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+    },
+    {
       id: 'sales' as MainTabType,
-      label: 'المبيعات والصيانة',
-      sublabel: 'بيع مباشر • فواتير صيانة',
+      label: 'المبيعات المباشرة',
+      sublabel: 'بيع قطع وفواتير صيانة',
       icon: ShoppingCart,
       badge: activeRepairsCount > 0 ? `${activeRepairsCount} قيد الإصلاح` : undefined,
       badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',

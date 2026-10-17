@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   BarChart3, Package, ShoppingCart, Truck, Building2, Users,
-  Calendar, CalendarDays, RefreshCw, Layers
+  Calendar, CalendarDays, RefreshCw, Layers, Wrench
 } from 'lucide-react';
 import { Component, Sale, Purchase, Customer, Supplier, WorkshopSettings } from '../../db/types';
 import { DatePreset, getDateRangeFromPreset } from './reportUtils';
@@ -10,8 +10,9 @@ import { SalesReportView } from './SalesReportView';
 import { PurchasesReportView } from './PurchasesReportView';
 import { SuppliersReportView } from './SuppliersReportView';
 import { CustomersReportView } from './CustomersReportView';
+import { MaintenanceReportView } from './MaintenanceReportView';
 
-export type ReportCategory = 'inventory' | 'sales' | 'purchases' | 'suppliers' | 'customers';
+export type ReportCategory = 'inventory' | 'maintenance' | 'sales' | 'purchases' | 'suppliers' | 'customers';
 
 interface ReportsDashboardProps {
   components: Component[];
@@ -56,6 +57,15 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
       badge: `${components.length} صنف`,
       color: 'from-amber-600 to-amber-700',
       activeBorder: 'border-amber-500/50 text-amber-400 bg-amber-500/10',
+    },
+    {
+      id: 'maintenance' as ReportCategory,
+      title: 'تقارير الصيانة والأمانات',
+      subtitle: 'حركة الأجهزة، إيراد الفني، كشف القطع المستبدلة، والأمانات',
+      icon: Wrench,
+      badge: 'صيانة وأمانات',
+      color: 'from-orange-600 to-amber-700',
+      activeBorder: 'border-orange-500/50 text-orange-400 bg-orange-500/10',
     },
     {
       id: 'sales' as ReportCategory,
@@ -131,8 +141,8 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         </div>
       </div>
 
-      {/* 5 Main Report Category Tabs */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+      {/* 6 Main Report Category Tabs */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
         {categories.map((cat) => {
           const Icon = cat.icon;
           const isActive = activeCategory === cat.id;
@@ -252,6 +262,12 @@ export const ReportsDashboard: React.FC<ReportsDashboardProps> = ({
         {activeCategory === 'inventory' && (
           <InventoryReportView
             components={components}
+            settings={settings}
+          />
+        )}
+
+        {activeCategory === 'maintenance' && (
+          <MaintenanceReportView
             settings={settings}
           />
         )}

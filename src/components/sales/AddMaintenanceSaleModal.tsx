@@ -1,43 +1,66 @@
-import React, { useState, useMemo } from 'react';
-import { 
-  X, Plus, Trash2, Wrench, User, Calendar, 
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  X, Plus, Trash2, Wrench, User, Calendar,
   DollarSign, AlertCircle, CheckCircle, Cpu, Tv,
-  Activity, Shield, Sparkles, FileText
+  Activity, Shield, Sparkles, FileText, Package, Check, Clock, Edit3, Save
 } from 'lucide-react';
-import { Component, Customer, Sale, SaleItem, MaintenanceStatus, Technician } from '../../db/types';
+import {
+  Component, Customer, Sale, SaleItem, MaintenanceWorkflowStatus, Technician, MaintenanceOrder
+} from '../../db/types';
 import { ComponentSearchSelect } from '../ComponentSearchSelect';
 
 interface AddMaintenanceSaleModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (saleData: Omit<Sale, 'id'>) => void;
+  onUpdate?: (updatedSale: Sale) => void;
+  saleToEdit?: Sale | null;
   components: Component[];
   customers: Customer[];
   currency: string;
   technicians?: Technician[];
+  maintenanceOrders?: MaintenanceOrder[];
   onOpenAddTechnician?: () => void;
 }
+
+export const WORKFLOW_STAGES: { id: MaintenanceWorkflowStatus; label: string; color: string; bg: string }[] = [
+  { id: 'in_safes', label: '📦 في الأمانات (محفوظ بالرف)', color: 'text-blue-300', bg: 'bg-blue-900/40 border-blue-600/50' },
+  { id: 'under_inspection', label: '🔬 قيد الفحص والتشخيص', color: 'text-yellow-300', bg: 'bg-yellow-900/40 border-yellow-600/50' },
+  { id: 'under_repair', label: '🔧 قيد الصيانة والإصلاح', color: 'text-orange-300', bg: 'bg-orange-900/40 border-orange-600/50' },
+  { id: 'awaiting_part', label: '⏳ بانتظار توفير قطعة غيار', color: 'text-purple-300', bg: 'bg-purple-900/40 border-purple-600/50' },
+  { id: 'awaiting_approval', label: '📋 بانتظار موافقة الزبون', color: 'text-pink-300', bg: 'bg-pink-900/40 border-pink-600/50' },
+  { id: 'ready', label: '✨ تم الإصلاح (جاهز للتسليم)', color: 'text-emerald-300', bg: 'bg-emerald-900/40 border-emerald-600/50' },
+  { id: 'delivered', label: '🤝 تم التسليم للزبون والفوترة', color: 'text-teal-300', bg: 'bg-teal-900/40 border-teal-600/50' },
+];
 
 export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = ({
   isOpen,
   onClose,
   onSave,
+  onUpdate,
+  saleToEdit,
   components,
   customers,
   currency,
   technicians = [],
+  maintenanceOrders = [],
   onOpenAddTechnician,
 }) => {
+  // Source Mode: 'maintenance_order' | 'customer_list' | 'manual'
+  const [sourceMode, setSourceMode] = useState<'maintenance_order' | 'customer_list' | 'manual'>(() => {
+    return maintenanceOrders && maintenanceOrders.length > 0 ? 'maintenance_order' : 'customer_list';
+  });
+  const [selectedMaintenanceOrderId, setSelectedMaintenanceOrderId] = useState<number | ''>('');
+
   // Customer
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number>(1);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number>(customers[0]?.id || 1);
   const [customCustomerName, setCustomCustomerName] = useState('');
   const [customCustomerPhone, setCustomCustomerPhone] = useState('');
-  const [isNewCustomer, setIsNewCustomer] = useState(false);
 
   // Maintenance Ticket Metadata
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [invoiceNumber] = useState(() => `MNT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
-  
+  const [invoiceNumber, setInvoiceNumber] = useState(() => `MNT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+
   // Device Details
   const [deviceType, setDeviceType] = useState('شاشة تلفزيون LED');
   const [brand, setBrand] = useState('Samsung');
@@ -46,7 +69,12 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
   const [faultDescription, setFaultDescription] = useState('');
   const [technicianName, setTechnicianName] = useState(() => technicians[0]?.name || 'م. عمر الليبي');
   const [isCustomTechnician, setIsCustomTechnician] = useState(false);
-  const [status, setStatus] = useState<MaintenanceStatus>('ready');
+  const [status, setStatus] = useState<MaintenanceWorkflowStatus>('ready');
+
+  // Suspension / Pending Invoice (Observation 7)
+  const [isSuspended, setIsSuspended] = useState(false);
+  const [suspensionReason, setSuspensionReason] = useState('انتظار وصول قطعة الغيار غير المتوفرة');
+  const [requestedParts, setRequestedParts] = useState('');
 
   // Financial Breakdown Components
   // 1. Spare parts
@@ -64,17 +92,97 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
   ]);
 
   // 2. Labor & Technician Fee
-  const [technicianFee, setTechnicianFee] = useState<number>(20000);
+  const [technicianFee, setTechnicianFee] = useState<number>(0);
 
   // 3. Extra Services & Expenses
-  const [extraServicesDescription, setExtraServicesDescription] = useState('فحص مجهري وتنظيف مسارات الباور ومعجون حراري');
-  const [extraServicesFee, setExtraServicesFee] = useState<number>(5000);
-  const [extraExpensesCost, setExtraExpensesCost] = useState<number>(1000);
+  const [extraServicesDescription, setExtraServicesDescription] = useState('');
+  const [extraServicesFee, setExtraServicesFee] = useState<number>(0);
+  const [extraExpensesCost, setExtraExpensesCost] = useState<number>(0);
 
   // Discounts & Payment
   const [discount, setDiscount] = useState<number>(0);
   const [paidAmount, setPaidAmount] = useState<number>(0);
   const [notes, setNotes] = useState('');
+
+  // Synchronize state when editing an existing invoice or creating a new one
+  useEffect(() => {
+    if (!isOpen) return;
+
+    if (saleToEdit) {
+      setInvoiceNumber(saleToEdit.invoiceNumber);
+      setDate(saleToEdit.date || new Date().toISOString().split('T')[0]);
+
+      if (saleToEdit.maintenanceOrderId) {
+        setSourceMode('maintenance_order');
+        setSelectedMaintenanceOrderId(saleToEdit.maintenanceOrderId);
+      } else if (saleToEdit.customerId) {
+        setSourceMode('customer_list');
+        setSelectedCustomerId(saleToEdit.customerId);
+      } else {
+        setSourceMode('manual');
+      }
+
+      setCustomCustomerName(saleToEdit.customerName || '');
+      setCustomCustomerPhone(saleToEdit.customerPhone && saleToEdit.customerPhone !== '—' ? saleToEdit.customerPhone : '');
+
+      if (saleToEdit.maintenance) {
+        setDeviceType(saleToEdit.maintenance.deviceType || 'شاشة تلفزيون LED');
+        setBrand(saleToEdit.maintenance.brand || 'Samsung');
+        setModelOrBoard(saleToEdit.maintenance.modelOrBoard || '');
+        setSerialOrChassis(saleToEdit.maintenance.serialOrChassis || '');
+        setFaultDescription(saleToEdit.maintenance.faultDescription || '');
+        setTechnicianName(saleToEdit.maintenance.technicianName || (technicians[0]?.name || 'م. عمر الليبي'));
+        setStatus(saleToEdit.maintenance.status || 'awaiting_part');
+        setTechnicianFee(saleToEdit.maintenance.technicianFee || 0);
+        setExtraServicesDescription(saleToEdit.maintenance.extraServicesDescription || '');
+        setExtraServicesFee(saleToEdit.maintenance.extraServicesFee || 0);
+        setExtraExpensesCost(saleToEdit.maintenance.extraExpensesCost || 0);
+      }
+
+      const isSusp = Boolean(saleToEdit.isSuspended || saleToEdit.maintenance?.isSuspended || saleToEdit.maintenance?.status === 'awaiting_part');
+      setIsSuspended(isSusp);
+      setSuspensionReason(saleToEdit.suspensionReason || saleToEdit.maintenance?.suspensionReason || 'انتظار وصول قطعة الغيار غير المتوفرة');
+      setRequestedParts(saleToEdit.requestedParts || saleToEdit.maintenance?.requestedParts || '');
+
+      setSpareParts(saleToEdit.items && saleToEdit.items.length > 0 ? [...saleToEdit.items] : []);
+      setDiscount(saleToEdit.discount || 0);
+      setPaidAmount(saleToEdit.paidAmount || 0);
+      setNotes(saleToEdit.notes || '');
+    } else {
+      setInvoiceNumber(`MNT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`);
+      setDate(new Date().toISOString().split('T')[0]);
+      if (maintenanceOrders && maintenanceOrders.length > 0) {
+        setSourceMode('maintenance_order');
+      } else {
+        setSourceMode('customer_list');
+      }
+      setSelectedMaintenanceOrderId('');
+      setCustomCustomerName('');
+      setCustomCustomerPhone('');
+      setIsSuspended(false);
+      setSuspensionReason('انتظار وصول قطعة الغيار غير المتوفرة');
+      setRequestedParts('');
+      setSpareParts(components.length > 0 ? [
+        {
+          id: 1,
+          componentId: components[0]?.id || 1,
+          partNumber: components[0]?.part_number || '',
+          quantity: 1,
+          unitPrice: components[0]?.sale_price || 3000,
+          unitCost: components[0]?.cost_price || 1500,
+          totalPrice: components[0]?.sale_price || 3000,
+          totalCost: components[0]?.cost_price || 1500,
+        }
+      ] : []);
+      setTechnicianFee(0);
+      setExtraServicesDescription('');
+      setExtraServicesFee(0);
+      setExtraExpensesCost(0);
+      setDiscount(0);
+      setPaidAmount(0);
+      setNotes('');
+    }
+  }, [isOpen, saleToEdit]);
 
   // Handle Spare Part Changes
   const handlePartChange = (index: number, compId: number) => {
@@ -167,13 +275,102 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
     setPaidAmount(totalAmount);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  // Active maintenance orders
+  const activeMaintenanceOrders = useMemo(() => {
+    return (maintenanceOrders || []).filter(o =>
+      o.status !== 'returned_no_repair' &&
+      o.status !== 'rejected_by_customer' &&
+      o.status !== 'delivered' &&
+      o.status !== 'unrepairable'
+    );
+  }, [maintenanceOrders]);
 
+  const selectedMaintenanceOrder = useMemo(() => {
+    if (!selectedMaintenanceOrderId) return null;
+    return (maintenanceOrders || []).find(o => o.id === selectedMaintenanceOrderId) || null;
+  }, [selectedMaintenanceOrderId, maintenanceOrders]);
+
+  const handleSelectMaintenanceOrder = (orderId: number | '') => {
+    setSelectedMaintenanceOrderId(orderId);
+    if (!orderId) return;
+
+    const order = (maintenanceOrders || []).find(o => o.id === orderId);
+    if (!order) return;
+
+    // Customer
+    setCustomCustomerName(order.customerName);
+    setCustomCustomerPhone(order.customerPhone);
+    if (order.customerId) {
+      setSelectedCustomerId(order.customerId);
+    }
+
+    // Device
+    setDeviceType(order.deviceType || 'شاشة تلفزيون LED');
+    setBrand(order.brand || '');
+    setModelOrBoard(order.model || '');
+    setSerialOrChassis(order.serialNumber || '');
+    setFaultDescription(order.diagnosedFault || order.reportedFault || '');
+    if (order.technicianName) {
+      setTechnicianName(order.technicianName);
+    }
+
+    // Status
+    setStatus(order.status);
+
+    // Labor fee
+    if (order.laborFee > 0) {
+      setTechnicianFee(order.laborFee);
+    }
+
+    // Spare parts from order
+    if (order.parts && order.parts.length > 0) {
+      const convertedParts: SaleItem[] = order.parts.map((p, idx) => ({
+        id: p.id || idx + 1,
+        componentId: p.componentId || components[0]?.id || 1,
+        partNumber: p.partNumber || p.description,
+        quantity: p.quantity,
+        unitPrice: p.unitSalePrice,
+        unitCost: p.unitCost,
+        totalPrice: p.totalSalePrice,
+        totalCost: p.totalCost,
+      }));
+      setSpareParts(convertedParts);
+    }
+
+    // Discount
+    if (order.discount > 0) {
+      setDiscount(order.discount);
+    }
+
+    // Suspension state
+    if (order.isSuspended) {
+      setIsSuspended(true);
+      setSuspensionReason(order.suspensionReason || 'انتظار وصول قطعة الغيار غير المتوفرة');
+      setRequestedParts(order.requestedParts || '');
+    } else if (order.status === 'awaiting_part') {
+      setIsSuspended(true);
+      setSuspensionReason('انتظار توفير قطعة غيار');
+      setRequestedParts(order.requestedParts || '');
+    } else {
+      setIsSuspended(false);
+      setSuspensionReason('انتظار وصول قطعة الغيار غير المتوفرة');
+      setRequestedParts('');
+    }
+
+    // Paid amount
+    if (order.paidAmount > 0) {
+      setPaidAmount(order.paidAmount);
+    }
+  };
+
+  const handleSaveForm = (asSuspended: boolean = false) => {
     let customerName = 'عميل نقدي / عام';
     let customerPhone = '—';
 
-    if (isNewCustomer) {
+    if (sourceMode === 'maintenance_order') {
+      customerName = customCustomerName.trim() || 'عميل صيانة';
+      customerPhone = customCustomerPhone.trim() || '—';
+    } else if (sourceMode === 'manual') {
       customerName = customCustomerName.trim() || 'عميل صيانة';
       customerPhone = customCustomerPhone.trim() || '—';
     } else {
@@ -184,19 +381,35 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
       }
     }
 
-    const paymentStatus: 'paid' | 'partial' | 'unpaid' = 
+    // Determine effectiveStatus:
+    // If saving as suspended -> must be 'awaiting_part'
+    // If saving as finished/approved (asSuspended === false):
+    //    if status is still 'awaiting_part', auto-transition to 'ready' (or 'delivered' if paid in full)
+    let effectiveStatus: MaintenanceWorkflowStatus = asSuspended ? 'awaiting_part' : status;
+    if (!asSuspended && effectiveStatus === 'awaiting_part') {
+      effectiveStatus = (paidAmount >= totalAmount && totalAmount > 0) ? 'delivered' : 'ready';
+    }
+
+    const paymentStatus: 'paid' | 'partial' | 'unpaid' =
       paidAmount >= totalAmount ? 'paid' : paidAmount > 0 ? 'partial' : 'unpaid';
 
-    onSave({
+    const cleanNotes = notes.replace(/^\[فاتورة معلقة - قيد الانتظار:[^\]]*\]\s*/, '').trim();
+
+    const salePayload = {
       invoiceNumber,
-      saleType: 'maintenance',
-      customerId: isNewCustomer ? undefined : selectedCustomerId,
+      saleType: 'maintenance' as const,
+      maintenanceOrderId: sourceMode === 'maintenance_order' && selectedMaintenanceOrderId ? Number(selectedMaintenanceOrderId) : (saleToEdit?.maintenanceOrderId || undefined),
+      customerId: sourceMode === 'customer_list' ? selectedCustomerId : (saleToEdit?.customerId || undefined),
       customerName,
       customerPhone,
       date,
       items: spareParts,
       partsTotal,
+      isSuspended: asSuspended,
+      suspensionReason: asSuspended ? (suspensionReason.trim() || 'انتظار وصول قطعة الغيار') : undefined,
+      requestedParts: asSuspended ? (requestedParts.trim() || undefined) : undefined,
       maintenance: {
+        maintenanceOrderId: sourceMode === 'maintenance_order' && selectedMaintenanceOrderId ? Number(selectedMaintenanceOrderId) : (saleToEdit?.maintenanceOrderId || undefined),
         deviceType,
         brand,
         modelOrBoard,
@@ -207,9 +420,12 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
         extraServicesDescription,
         extraServicesFee,
         extraExpensesCost,
-        status,
+        status: effectiveStatus,
+        isSuspended: asSuspended,
+        suspensionReason: asSuspended ? (suspensionReason.trim() || 'انتظار وصول قطعة الغيار') : undefined,
+        requestedParts: asSuspended ? (requestedParts.trim() || undefined) : undefined,
         receivedDate: date,
-        deliveryDate: status === 'delivered' ? date : undefined,
+        deliveryDate: effectiveStatus === 'delivered' ? date : undefined,
       },
       discount,
       totalAmount,
@@ -217,8 +433,23 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
       profit: netProfit,
       paidAmount: Math.min(totalAmount, paidAmount),
       paymentStatus,
-      notes,
-    });
+      notes: asSuspended
+        ? `[فاتورة معلقة - قيد الانتظار: ${suspensionReason.trim() || 'انتظار توفير القطعة'}${requestedParts.trim() ? ` | القطع المطلوبة: ${requestedParts.trim()}` : ''}] ${cleanNotes}`.trim()
+        : cleanNotes,
+    };
+
+    if (saleToEdit && onUpdate) {
+      onUpdate({
+        ...saleToEdit,
+        ...salePayload,
+        id: saleToEdit.id,
+        isSuspended: asSuspended,
+        suspensionReason: asSuspended ? (suspensionReason.trim() || 'انتظار وصول قطعة الغيار') : undefined,
+        requestedParts: asSuspended ? (requestedParts.trim() || undefined) : undefined,
+      });
+    } else {
+      onSave(salePayload);
+    }
 
     onClose();
   };
@@ -229,24 +460,45 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-fade-in" dir="rtl">
       <div className="relative w-full max-w-4xl bg-slate-900 border border-cyan-500/30 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[94vh]">
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-cyan-950 via-slate-900 to-indigo-950 border-b border-cyan-500/20 flex items-center justify-between shrink-0">
+        <div className={`px-6 py-4 border-b flex items-center justify-between shrink-0 ${
+          saleToEdit
+            ? 'bg-gradient-to-r from-purple-950 via-slate-900 to-indigo-950 border-purple-500/30'
+            : 'bg-gradient-to-r from-cyan-950 via-slate-900 to-indigo-950 border-cyan-500/20'
+        }`}>
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 shadow-inner">
-              <Wrench className="w-5 h-5" />
+            <div className={`p-2.5 rounded-xl border shadow-inner ${
+              saleToEdit
+                ? 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+                : 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30'
+            }`}>
+              {saleToEdit ? <Edit3 className="w-5 h-5" /> : <Wrench className="w-5 h-5" />}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-black text-white">تسجيل مبيعات وعملية صيانة متكاملة</h3>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono">
+                <h3 className="text-lg font-black text-white">
+                  {saleToEdit ? 'تعديل الفاتورة المعلقة / عملية الصيانة' : 'تسجيل مبيعات وعملية صيانة متكاملة'}
+                </h3>
+                <span className={`text-xs px-2.5 py-0.5 rounded-full font-mono font-bold ${
+                  saleToEdit
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                    : 'bg-cyan-500/20 text-cyan-300'
+                }`}>
                   {invoiceNumber}
                 </span>
+                {saleToEdit && (saleToEdit.isSuspended || saleToEdit.maintenance?.isSuspended) && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                    ⏳ قيد الانتظار
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-400">
-                تشمل: قطع الغيار المستبدلة + أجرة الفني والتركيب + الخدمات الإضافية مع حساب دقيق للتكلفة والربح
+                {saleToEdit
+                  ? 'يمكنك تعديل قطع الغيار المستخدمة، تحديث النواقص وسبب التعليق، أو استئناف الفاتورة وإنهاؤها مباشرة.'
+                  : 'تشمل: قطع الغيار المستبدلة + أجرة الفني والتركيب + الخدمات الإضافية مع حساب دقيق للتكلفة والربح'}
               </p>
             </div>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="text-slate-400 hover:text-white p-1 rounded-lg bg-slate-800/60 hover:bg-slate-800 transition cursor-pointer"
           >
@@ -255,60 +507,168 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
         </div>
 
         {/* Content Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
+        <form onSubmit={(e) => { e.preventDefault(); handleSaveForm(false); }} className="p-6 space-y-6 overflow-y-auto flex-1">
           {/* Section 1: Customer & Ticket Date */}
           <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 space-y-3">
-            <div className="text-xs font-bold text-slate-200 flex items-center justify-between border-b border-slate-700/60 pb-2">
+            <div className="text-xs font-bold text-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-700/60 pb-2">
               <span className="flex items-center gap-1.5">
                 <User className="w-4 h-4 text-cyan-400" />
                 بيانات صاحب الجهاز والعملية
               </span>
-              <button
-                type="button"
-                onClick={() => setIsNewCustomer(prev => !prev)}
-                className="text-[11px] text-cyan-400 hover:underline cursor-pointer font-semibold"
-              >
-                {isNewCustomer ? 'اختر من قائمة العملاء المسجلين' : '+ عميل جديد / غير مسجل'}
-              </button>
+
+              {/* Source Mode Tabs */}
+              <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setSourceMode('maintenance_order')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${sourceMode === 'maintenance_order'
+                      ? 'bg-cyan-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                    }`}
+                >
+                  <Package className="w-3.5 h-3.5" />
+                  أجهزة الصيانة والأمانات
+                  {activeMaintenanceOrders.length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-800/50">
+                      {activeMaintenanceOrders.length}
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSourceMode('customer_list')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${sourceMode === 'customer_list'
+                      ? 'bg-cyan-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                    }`}
+                >
+                  دليل العملاء
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSourceMode('manual')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${sourceMode === 'manual'
+                      ? 'bg-cyan-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                    }`}
+                >
+                  عميل جديد / يدوي
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2">
-                {isNewCustomer ? (
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="text"
-                      placeholder="اسم العميل (مثال: م. أحمد السعدي)"
-                      value={customCustomerName}
-                      onChange={e => setCustomCustomerName(e.target.value)}
-                      required
-                      className="w-full px-3 py-2 text-xs rounded-lg bg-slate-900 border border-slate-700 text-white focus:border-cyan-500 outline-none"
-                    />
-                    <input
-                      type="text"
-                      placeholder="رقم هاتف العميل"
-                      value={customCustomerPhone}
-                      onChange={e => setCustomCustomerPhone(e.target.value)}
-                      required
-                      className="w-full px-3 py-2 text-xs rounded-lg bg-slate-900 border border-slate-700 text-white focus:border-cyan-500 outline-none"
-                    />
+              <div className="sm:col-span-2 space-y-2">
+                {sourceMode === 'maintenance_order' && (
+                  <div>
+                    <label className="text-[10px] text-cyan-400 font-bold block mb-1">
+                      اختر الجهاز المستلم (مربوط بقسم الصيانة والأمانات):
+                    </label>
+                    <select
+                      value={selectedMaintenanceOrderId}
+                      onChange={e => handleSelectMaintenanceOrder(e.target.value ? Number(e.target.value) : '')}
+                      className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-slate-900 border border-cyan-500/60 text-white focus:border-cyan-400 outline-none cursor-pointer"
+                    >
+                      <option value="">-- اضغط لاختيار جهاز مستلم من الصيانة والأمانات --</option>
+                      {activeMaintenanceOrders.map(order => {
+                        const statusObj = WORKFLOW_STAGES.find(s => s.id === order.status);
+                        const statusLabel = statusObj ? statusObj.label : order.status;
+                        return (
+                          <option key={order.id} value={order.id}>
+                            [{order.orderNumber}] {order.customerName} — {order.deviceType} {order.brand} ({statusLabel}) {order.shelfLocation ? `[الرف: ${order.shelfLocation}]` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+
+                    {selectedMaintenanceOrder && (
+                      <div className="mt-2.5 p-3 rounded-xl bg-cyan-950/40 border border-cyan-800/50 text-xs space-y-1.5 animate-fade-in">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-white flex items-center gap-1.5">
+                            <span className="text-cyan-400">العميل:</span>
+                            {selectedMaintenanceOrder.customerName}
+                            <span className="text-cyan-400 font-mono" dir="ltr">({selectedMaintenanceOrder.customerPhone})</span>
+                          </span>
+                          {selectedMaintenanceOrder.shelfLocation && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-cyan-900/60 text-cyan-200 border border-cyan-700/50">
+                              📦 الرف: {selectedMaintenanceOrder.shelfLocation}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-300 flex items-center gap-1.5 flex-wrap">
+                          <span className="text-slate-400">الجهاز:</span>
+                          <span className="font-semibold">{[selectedMaintenanceOrder.deviceType, selectedMaintenanceOrder.brand, selectedMaintenanceOrder.model].filter(Boolean).join(' - ')}</span>
+                          {selectedMaintenanceOrder.reportedFault && (
+                            <span className="text-amber-300 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-800/40">
+                              العطل: {selectedMaintenanceOrder.reportedFault}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] text-emerald-400 font-semibold pt-1 border-t border-cyan-900/50 flex items-center gap-1">
+                          <Check className="w-3 h-3" /> تم جلب بيانات العميل وتفاصيل الجهاز وقطع الغيار المسجلة تلقائياً.
+                        </div>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <select
-                    value={selectedCustomerId}
-                    onChange={e => setSelectedCustomerId(Number(e.target.value))}
-                    className="w-full px-3 py-2 text-xs rounded-lg bg-slate-900 border border-slate-700 text-white focus:border-cyan-500 outline-none"
-                  >
-                    {customers.map(c => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} {c.phone && c.phone !== '—' ? `(${c.phone})` : ''} - {c.address || ''}
-                      </option>
-                    ))}
-                  </select>
+                )}
+
+                {sourceMode === 'customer_list' && (
+                  <div>
+                    <label className="text-[10px] text-slate-400 block mb-1">اختر من قائمة العملاء المسجلين:</label>
+                    <select
+                      value={selectedCustomerId}
+                      onChange={e => {
+                        const id = Number(e.target.value);
+                        setSelectedCustomerId(id);
+                        const c = customers.find(item => item.id === id);
+                        if (c) {
+                          setCustomCustomerName(c.name);
+                          setCustomCustomerPhone(c.phone);
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-xs rounded-lg bg-slate-900 border border-slate-700 text-white focus:border-cyan-500 outline-none"
+                    >
+                      {customers.map(c => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} {c.phone && c.phone !== '—' ? `(${c.phone})` : ''} - {c.address || ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {sourceMode === 'manual' && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-1">اسم العميل:</label>
+                      <input
+                        type="text"
+                        placeholder="اسم العميل (مثال: م. أحمد السعدي)"
+                        value={customCustomerName}
+                        onChange={e => setCustomCustomerName(e.target.value)}
+                        required
+                        className="w-full px-3 py-2 text-xs rounded-lg bg-slate-900 border border-slate-700 text-white focus:border-cyan-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 block mb-1">رقم الهاتف:</label>
+                      <input
+                        type="text"
+                        placeholder="09xxxxxxxx"
+                        value={customCustomerPhone}
+                        onChange={e => setCustomCustomerPhone(e.target.value)}
+                        required
+                        className="w-full px-3 py-2 text-xs rounded-lg bg-slate-900 border border-slate-700 text-white focus:border-cyan-500 outline-none"
+                      />
+                    </div>
+                  </div>
                 )}
               </div>
 
               <div>
+                <label className="text-[10px] text-slate-400 block mb-1">تاريخ العملية:</label>
                 <input
                   type="date"
                   value={date}
@@ -363,16 +723,17 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
               </div>
 
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">حالة عملية الصيانة</label>
+                <label className="text-[10px] text-slate-400 block mb-1">مرحلة الصيانة الحالية:</label>
                 <select
                   value={status}
-                  onChange={e => setStatus(e.target.value as MaintenanceStatus)}
-                  className="w-full px-3 py-2 text-xs font-bold rounded-lg bg-slate-900 border border-slate-700 text-cyan-300 focus:border-cyan-500 outline-none"
+                  onChange={e => setStatus(e.target.value as MaintenanceWorkflowStatus)}
+                  className="w-full px-3 py-2 text-xs font-bold rounded-lg bg-slate-900 border border-cyan-500 text-cyan-300 focus:border-cyan-400 outline-none cursor-pointer"
                 >
-                  <option value="received">استلام وقيد الفحص</option>
-                  <option value="in_progress">قيد الإصلاح على طاولة الصيانة</option>
-                  <option value="ready">تم الإصلاح وجاهز للتسليم</option>
-                  <option value="delivered">تم التسليم للعميل بالكامل</option>
+                  {WORKFLOW_STAGES.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -450,6 +811,80 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
             </div>
           </div>
 
+          {/* Suspension & Pending Invoice Card (Observation 7) */}
+          <div className={`p-4 rounded-xl border transition-all ${isSuspended || status === 'awaiting_part'
+              ? 'bg-purple-950/40 border-purple-500/60 shadow-lg shadow-purple-950/50'
+              : 'bg-slate-800/40 border-slate-700/60'
+            }`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-700/60">
+              <div className="flex items-center gap-2">
+                <Clock className={`w-4 h-4 ${isSuspended || status === 'awaiting_part' ? 'text-purple-400' : 'text-slate-400'}`} />
+                <span className="text-xs font-bold text-white">
+                  تعليق الفاتورة والعملية (قيد الانتظار)
+                </span>
+                {(isSuspended || status === 'awaiting_part') && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 font-mono">
+                    قيد الانتظار
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const nextState = !isSuspended;
+                  setIsSuspended(nextState);
+                  if (nextState) {
+                    setStatus('awaiting_part');
+                  } else if (status === 'awaiting_part') {
+                    setStatus((paidAmount >= totalAmount && totalAmount > 0) ? 'delivered' : 'ready');
+                  }
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${isSuspended || status === 'awaiting_part'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'bg-slate-800 text-slate-400 hover:text-white border border-slate-700'
+                  }`}
+              >
+                {isSuspended || status === 'awaiting_part' ? '✓ الفاتورة معلقة حالياً (انقر للإلغاء)' : '+ تفعيل تعليق الفاتورة مؤقتاً'}
+              </button>
+            </div>
+
+            {(isSuspended || status === 'awaiting_part') ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 text-xs animate-fade-in">
+                <div>
+                  <label className="text-[10px] text-purple-300 font-bold block mb-1">
+                    القطع المطلوبة وغير المتوفرة (التي يُنتظر وصولها):
+                  </label>
+                  <input
+                    type="text"
+                    value={requestedParts}
+                    onChange={e => setRequestedParts(e.target.value)}
+                    placeholder="مثال: IC Power TPS51125 أو شاشة 32 بوصة أصلية..."
+                    className="w-full px-3 py-2 text-xs rounded-lg bg-slate-900 border border-purple-500/50 text-white focus:border-purple-400 outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] text-purple-300 font-bold block mb-1">
+                    سبب التعليق:
+                  </label>
+                  <input
+                    type="text"
+                    value={suspensionReason}
+                    onChange={e => setSuspensionReason(e.target.value)}
+                    placeholder="مثال: انتظار شحن وتوريد القطعة من المورد..."
+                    className="w-full px-3 py-2 text-xs rounded-lg bg-slate-900 border border-purple-500/50 text-white focus:border-purple-400 outline-none"
+                  />
+                </div>
+                <div className="sm:col-span-2 text-[11px] text-purple-200/90 bg-purple-900/30 p-2.5 rounded-lg border border-purple-800/40">
+                  ℹ️ يتم حفظ كافة البيانات المدخلة وتظل الفاتورة مفتوحة وقابلة للتعديل والاستكمال بمجرد توفر القطعة أو حضور الزبون، وتظهر ضمن قائمة الفواتير المعلقة.
+                </div>
+              </div>
+            ) : (
+              <p className="text-[11px] text-slate-400 pt-2">
+                إذا كانت هناك قطع مطلوبة غير متوفرة حالياً أو تنتظر شحنها أو موافقة العميل، يمكنك تفعيل هذا الخيار لحفظ الفاتورة معلقة وقابلة للاستكمال لاحقاً.
+              </p>
+            )}
+          </div>
+
           {/* Section 3: Spare Parts Used in Repair */}
           <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-700/60 space-y-3">
             <div className="flex items-center justify-between border-b border-slate-700/60 pb-2">
@@ -478,8 +913,8 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
                   const isOverStock = currentComp && item.quantity > currentComp.stock_quantity;
 
                   return (
-                    <div 
-                      key={item.id} 
+                    <div
+                      key={item.id}
                       className="p-3 rounded-xl bg-slate-900 border border-slate-700 flex flex-col sm:flex-row items-center gap-3"
                     >
                       <div className="flex-1 w-full sm:w-auto">
@@ -514,7 +949,7 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
                         <input
                           type="number"
                           min="0"
-                          step="100"
+                          step="0.01"
                           value={item.unitPrice}
                           onChange={e => handlePriceChange(idx, Number(e.target.value))}
                           className="w-full px-3 py-2 text-xs font-bold text-emerald-400 rounded-lg bg-slate-950 border border-slate-700 focus:border-cyan-500 outline-none"
@@ -558,7 +993,7 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
                 <input
                   type="number"
                   min="0"
-                  step="1000"
+                  step="0.01"
                   value={technicianFee}
                   onChange={e => setTechnicianFee(Number(e.target.value))}
                   required
@@ -592,7 +1027,7 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
                   <input
                     type="number"
                     min="0"
-                    step="500"
+                    step="0.01"
                     value={extraServicesFee}
                     onChange={e => setExtraServicesFee(Number(e.target.value))}
                     className="w-full px-3 py-1.5 text-xs font-bold text-cyan-300 rounded-lg bg-slate-900 border border-slate-700 focus:border-cyan-500 outline-none"
@@ -603,7 +1038,7 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
                   <input
                     type="number"
                     min="0"
-                    step="500"
+                    step="0.01"
                     value={extraExpensesCost}
                     onChange={e => setExtraExpensesCost(Number(e.target.value))}
                     className="w-full px-3 py-1.5 text-xs font-bold text-slate-400 rounded-lg bg-slate-900 border border-slate-700 focus:border-slate-500 outline-none"
@@ -620,7 +1055,7 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
               <input
                 type="number"
                 min="0"
-                step="500"
+                step="0.01"
                 value={discount}
                 onChange={e => setDiscount(Number(e.target.value))}
                 placeholder="0"
@@ -700,8 +1135,8 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
             </div>
           </div>
 
-          {/* Footer Submit */}
-          <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-800">
+          {/* Footer Submit Actions */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
             <button
               type="button"
               onClick={onClose}
@@ -709,13 +1144,32 @@ export const AddMaintenanceSaleModal: React.FC<AddMaintenanceSaleModalProps> = (
             >
               إلغاء
             </button>
-            <button
-              type="submit"
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold shadow-lg shadow-cyan-950 transition active:scale-95 cursor-pointer"
-            >
-              <CheckCircle className="w-4 h-4" />
-              حفظ بطاقة الصيانة والفاتورة
-            </button>
+
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => handleSaveForm(true)}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-purple-900/80 hover:bg-purple-800 text-purple-200 border border-purple-700/60 text-xs font-bold shadow-md shadow-purple-950 transition active:scale-95 cursor-pointer"
+                title={saleToEdit ? "حفظ التعديلات مع إبقاء الفاتورة معلقة وقيد الانتظار" : "حفظ الفاتورة مع إبقائها مفتوحة وقابلة للتعديل والاستكمال لاحقاً"}
+              >
+                <Clock className="w-4 h-4 text-purple-400" />
+                <span>{saleToEdit ? 'حفظ كـ معلقة (قيد الانتظار)' : 'تعليق الفاتورة (قيد الانتظار)'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSaveForm(false)}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold shadow-lg shadow-cyan-950 transition active:scale-95 cursor-pointer"
+              >
+                <CheckCircle className="w-4 h-4" />
+                <span>
+                  {saleToEdit
+                    ? (status === 'delivered' ? 'حفظ وإنهاء الفاتورة وتسليم الجهاز' : 'حفظ الفاتورة واعتماد الصيانة')
+                    : (status === 'delivered' ? 'إنهاء الفاتورة وتسليم الجهاز' : 'إنهاء الفاتورة واعتماد الصيانة')
+                  }
+                </span>
+              </button>
+            </div>
           </div>
         </form>
       </div>

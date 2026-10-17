@@ -2,9 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { 
   ShoppingCart, Plus, Search, Filter, Printer, Trash2, 
   Wrench, ShoppingBag, DollarSign, TrendingUp, CheckCircle2,
-  Clock, AlertCircle, Sparkles, ChevronDown, PackageCheck, Eye
+  Clock, AlertCircle, Sparkles, ChevronDown, PackageCheck, Eye, Edit3
 } from 'lucide-react';
-import { Sale, FinancialStats, MaintenanceStatus, WorkshopSettings } from '../../db/types';
+import { Sale, FinancialStats, MaintenanceStatus, WorkshopSettings, MaintenanceWorkflowStatus } from '../../db/types';
 
 interface SalesDashboardProps {
   sales: Sale[];
@@ -12,9 +12,10 @@ interface SalesDashboardProps {
   settings: WorkshopSettings;
   onOpenAddDirectSale: () => void;
   onOpenAddMaintenanceSale: () => void;
+  onEditSale?: (sale: Sale) => void;
   onPrintSale: (sale: Sale) => void;
   onCollectPayment?: (sale: Sale) => void;
-  onUpdateStatus: (saleId: number, status: MaintenanceStatus) => void;
+  onUpdateStatus: (saleId: number, status: MaintenanceWorkflowStatus | MaintenanceStatus) => void;
   onDeleteSale: (saleId: number) => void;
 }
 
@@ -24,12 +25,13 @@ export const SalesDashboard: React.FC<SalesDashboardProps> = ({
   settings,
   onOpenAddDirectSale,
   onOpenAddMaintenanceSale,
+  onEditSale,
   onPrintSale,
   onCollectPayment,
   onUpdateStatus,
   onDeleteSale,
 }) => {
-  const [filterType, setFilterType] = useState<'all' | 'direct' | 'maintenance' | 'unpaid'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'direct' | 'maintenance' | 'unpaid' | 'suspended'>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | MaintenanceStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -40,6 +42,10 @@ export const SalesDashboard: React.FC<SalesDashboardProps> = ({
       if (filterType === 'unpaid') {
         const rem = Math.max(0, s.totalAmount - (s.paidAmount || 0));
         if (rem <= 0) return false;
+      } else if (filterType === 'suspended') {
+        if (!s.isSuspended && !s.maintenance?.isSuspended) {
+          return false;
+        }
       } else if (filterType !== 'all' && s.saleType !== filterType) {
         return false;
       }
@@ -230,6 +236,16 @@ export const SalesDashboard: React.FC<SalesDashboardProps> = ({
         >
           ديون متبقية للتحصيل ({sales.filter(s => s.totalAmount > (s.paidAmount || 0)).length})
         </button>
+        <button
+          onClick={() => { setFilterType('suspended'); setStatusFilter('all'); }}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+            filterType === 'suspended'
+              ? 'bg-purple-600 text-white font-black shadow-md shadow-purple-950'
+              : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+          }`}
+        >
+          ⏳ فواتير معلقة ({sales.filter(s => s.isSuspended || s.maintenance?.isSuspended).length})
+        </button>
 
         {filterType === 'maintenance' && (
           <div className="flex items-center gap-1.5 mr-auto">
@@ -312,21 +328,30 @@ export const SalesDashboard: React.FC<SalesDashboardProps> = ({
                       <div className="relative inline-flex items-center gap-1 mr-auto sm:mr-0">
                         <select
                           value={sale.maintenance.status}
-                          onChange={e => onUpdateStatus(sale.id, e.target.value as MaintenanceStatus)}
-                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border cursor-pointer outline-none ${
+                          onChange={e => onUpdateStatus(sale.id, e.target.value as MaintenanceWorkflowStatus)}
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border cursor-pointer outline-none bg-slate-900 ${
                             sale.maintenance.status === 'delivered'
-                              ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                              ? 'text-teal-300 border-teal-500/40 bg-teal-950/60'
                               : sale.maintenance.status === 'ready'
-                              ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
-                              : sale.maintenance.status === 'in_progress'
-                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                              : 'bg-slate-700/50 text-slate-300 border-slate-600'
+                              ? 'text-emerald-300 border-emerald-500/40 bg-emerald-950/60'
+                              : sale.maintenance.status === 'under_repair'
+                              ? 'text-orange-300 border-orange-500/40 bg-orange-950/60'
+                              : sale.maintenance.status === 'awaiting_part'
+                              ? 'text-purple-300 border-purple-500/40 bg-purple-950/60'
+                              : sale.maintenance.status === 'awaiting_approval'
+                              ? 'text-pink-300 border-pink-500/40 bg-pink-950/60'
+                              : sale.maintenance.status === 'under_inspection'
+                              ? 'text-yellow-300 border-yellow-500/40 bg-yellow-950/60'
+                              : 'text-blue-300 border-blue-500/40 bg-blue-950/60'
                           }`}
                         >
-                          <option value="received">قيد الفحص والاستلام</option>
-                          <option value="in_progress">قيد الصيانة والإصلاح</option>
-                          <option value="ready">تم الإصلاح • جاهز للتسليم</option>
-                          <option value="delivered">تم التسليم للعميل</option>
+                          <option value="in_safes">📦 في الأمانات</option>
+                          <option value="under_inspection">🔬 قيد الفحص والتشخيص</option>
+                          <option value="under_repair">🔧 قيد الصيانة والإصلاح</option>
+                          <option value="awaiting_part">⏳ بانتظار قطعة غيار</option>
+                          <option value="awaiting_approval">📋 بانتظار موافقة الزبون</option>
+                          <option value="ready">✨ جاهز للتسليم</option>
+                          <option value="delivered">🤝 تم التسليم للزبون</option>
                         </select>
                       </div>
                     )}
@@ -361,6 +386,36 @@ export const SalesDashboard: React.FC<SalesDashboardProps> = ({
                       </div>
                     )}
                   </div>
+
+                  {/* Suspended Invoice Note */}
+                  {(sale.isSuspended || sale.maintenance?.isSuspended) && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-purple-950/40 border border-purple-800/50 text-xs">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 font-bold flex items-center gap-1 text-[11px]">
+                          ⏳ فاتورة معلقة (قيد الانتظار)
+                        </span>
+                        {(sale.suspensionReason || sale.maintenance?.suspensionReason) && (
+                          <span className="text-purple-200 text-[11px]">
+                            السبب: {sale.suspensionReason || sale.maintenance?.suspensionReason}
+                          </span>
+                        )}
+                        {(sale.requestedParts || sale.maintenance?.requestedParts) && (
+                          <span className="px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 font-mono text-[11px] font-bold">
+                            ⚠️ القطع المطلوبة: {sale.requestedParts || sale.maintenance?.requestedParts}
+                          </span>
+                        )}
+                      </div>
+                      {onEditSale && (
+                        <button
+                          onClick={() => onEditSale(sale)}
+                          className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-500 text-white font-bold text-[11px] flex items-center gap-1 shadow transition cursor-pointer"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>تعديل واستكمال الفاتورة</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   {/* Spare parts badges */}
                   <div className="flex flex-wrap items-center gap-1.5 pt-1">
@@ -415,6 +470,21 @@ export const SalesDashboard: React.FC<SalesDashboardProps> = ({
 
                   {/* Actions buttons */}
                   <div className="flex items-center gap-2">
+                    {onEditSale && (
+                      <button
+                        onClick={() => onEditSale(sale)}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition shadow-md cursor-pointer ${
+                          sale.isSuspended || sale.maintenance?.isSuspended
+                            ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-950 border border-purple-500/50'
+                            : 'bg-slate-800 hover:bg-slate-700 text-purple-300 hover:text-white border border-slate-700'
+                        }`}
+                        title={sale.isSuspended || sale.maintenance?.isSuspended ? "تعديل الفاتورة المعلقة والقطع والبيانات" : "تعديل الفاتورة"}
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>{sale.isSuspended || sale.maintenance?.isSuspended ? 'تعديل المعلقة' : 'تعديل'}</span>
+                      </button>
+                    )}
+
                     {remaining > 0 && onCollectPayment && (
                       <button
                         onClick={() => onCollectPayment(sale)}

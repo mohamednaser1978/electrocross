@@ -1,7 +1,9 @@
 import { 
   Component, Device, Compatibility, Equivalent, 
   ComponentDetail, DeviceDetail, SearchResultItem, WorkshopStats,
-  WorkshopSettings, Customer, Supplier, Technician, Purchase, Sale, MaintenanceStatus, FinancialStats 
+  WorkshopSettings, Customer, Supplier, Technician, Purchase, Sale, MaintenanceStatus, FinancialStats,
+  MaintenanceOrder, MaintenanceWorkflowStatus, MaintenanceOrderPart, MaintenanceOrderTimeline, MaintenanceStats,
+  PartDisposition
 } from './types';
 import { 
   INITIAL_COMPONENTS, INITIAL_DEVICES, INITIAL_COMPATIBILITIES, INITIAL_EQUIVALENTS,
@@ -57,6 +59,7 @@ export class ElectroCrossDB {
   private technicians: Technician[] = [];
   private purchases: Purchase[] = [];
   private sales: Sale[] = [];
+  private maintenanceOrders: MaintenanceOrder[] = [];
 
   private isInitialized = false;
 
@@ -106,6 +109,7 @@ export class ElectroCrossDB {
       const techStr = localStorage.getItem(`${STORAGE_KEY_PREFIX}technicians`);
       const purchasesStr = localStorage.getItem(`${STORAGE_KEY_PREFIX}purchases`);
       const salesStr = localStorage.getItem(`${STORAGE_KEY_PREFIX}sales`);
+      const maintenanceStr = localStorage.getItem(`${STORAGE_KEY_PREFIX}maintenance_orders`);
 
       this.settings = settingsStr ? JSON.parse(settingsStr) : JSON.parse(JSON.stringify(INITIAL_SETTINGS));
       this.customers = customersStr ? JSON.parse(customersStr) : JSON.parse(JSON.stringify(INITIAL_CUSTOMERS));
@@ -117,7 +121,41 @@ export class ElectroCrossDB {
         paidAmount: typeof p.paidAmount === 'number' ? p.paidAmount : p.totalAmount,
         paymentStatus: p.paymentStatus || ((typeof p.paidAmount === 'number' ? p.paidAmount : p.totalAmount) >= p.totalAmount ? 'paid' : ((p.paidAmount || 0) > 0 ? 'partial' : 'unpaid')),
       }));
-      this.sales = salesStr ? JSON.parse(salesStr) : JSON.parse(JSON.stringify(INITIAL_SALES));
+      const loadedSales = salesStr ? JSON.parse(salesStr) : JSON.parse(JSON.stringify(INITIAL_SALES));
+      this.sales = loadedSales.map((s: Sale) => {
+        if (!s.isSuspended) {
+          return {
+            ...s,
+            isSuspended: false,
+            suspensionReason: undefined,
+            requestedParts: undefined,
+            maintenance: s.maintenance ? {
+              ...s.maintenance,
+              isSuspended: false,
+              suspensionReason: undefined,
+              requestedParts: undefined,
+              status: s.maintenance.status === 'awaiting_part'
+                ? ((s.paidAmount >= s.totalAmount && s.totalAmount > 0) ? 'delivered' : 'ready')
+                : s.maintenance.status,
+            } : undefined,
+          };
+        }
+        return s;
+      });
+
+      const rawMaintenance = maintenanceStr ? JSON.parse(maintenanceStr) : [];
+      this.maintenanceOrders = rawMaintenance.map((o: MaintenanceOrder) => {
+        const order = {
+          ...o,
+          status: (o.status as string) === 'received' ? 'in_safes' : o.status,
+        };
+        if (!order.isSuspended && order.status === 'awaiting_part') {
+          order.status = (order.paidAmount >= order.totalAmount && order.totalAmount > 0) ? 'delivered' : 'ready';
+          order.suspensionReason = undefined;
+          order.requestedParts = undefined;
+        }
+        return order;
+      });
 
       // Automatic migration to Libyan Dinar (د.ل) if currently in Iraqi Dinar or unmigrated
       const isLydMigrated = localStorage.getItem(`${STORAGE_KEY_PREFIX}migrated_lyd_v3`);
@@ -152,6 +190,7 @@ export class ElectroCrossDB {
       localStorage.setItem(`${STORAGE_KEY_PREFIX}technicians`, JSON.stringify(this.technicians));
       localStorage.setItem(`${STORAGE_KEY_PREFIX}purchases`, JSON.stringify(this.purchases));
       localStorage.setItem(`${STORAGE_KEY_PREFIX}sales`, JSON.stringify(this.sales));
+      localStorage.setItem(`${STORAGE_KEY_PREFIX}maintenance_orders`, JSON.stringify(this.maintenanceOrders));
     } catch (e) {
       console.error('Failed to save to localStorage:', e);
     }
@@ -169,6 +208,7 @@ export class ElectroCrossDB {
     this.technicians = JSON.parse(JSON.stringify(INITIAL_TECHNICIANS));
     this.purchases = JSON.parse(JSON.stringify(INITIAL_PURCHASES));
     this.sales = JSON.parse(JSON.stringify(INITIAL_SALES));
+    this.maintenanceOrders = [];
 
     this.isInitialized = true;
     this.saveToStorage();
@@ -445,27 +485,194 @@ export class ElectroCrossDB {
     };
 
     this.sales.unshift(newSale);
+
+    // If this sale is linked to a maintenance order, synchronize the maintenance order!
+    if (data.saleType === 'maintenance' && data.maintenanceOrderId) {
+      const order = this.maintenanceOrders.find(o => o.id === data.maintenanceOrderId);
+      if (order) {
+        const targetStatus: MaintenanceWorkflowStatus = data.maintenance?.status || 'delivered';
+        order.status = targetStatus;
+        order.paidAmount = Math.max(order.paidAmount, data.paidAmount);
+        order.totalAmount = data.totalAmount;
+        if (data.isSuspended || data.maintenance?.isSuspended) {
+          order.isSuspended = true;
+          order.suspensionReason = data.suspensionReason || data.maintenance?.suspensionReason || 'قيد الانتظار';
+          order.requestedParts = data.requestedParts || data.maintenance?.requestedParts;
+          order.suspendedAt = new Date().toISOString();
+        } else if (order.isSuspended) {
+          order.isSuspended = false;
+        }
+
+        if (targetStatus === 'delivered') {
+          order.deliveryTimestamp = new Date().toISOString();
+          order.paymentStatus = data.paymentStatus;
+          order.deliveredBy = data.maintenance?.technicianName || 'المسؤول';
+        }
+        order.updatedAt = new Date().toISOString();
+        order.timeline.push({
+          id: (order.timeline.length > 0 ? Math.max(...order.timeline.map(t => t.id)) + 1 : 1),
+          timestamp: new Date().toISOString(),
+          action: data.isSuspended
+            ? `تعليق الفاتورة (قيد الانتظار): ${data.invoiceNumber} — ${order.suspensionReason}`
+            : `تسجيل فاتورة صيانة متكاملة رقم: ${data.invoiceNumber} بمبلغ ${data.totalAmount} د.ل`,
+          newStatus: targetStatus,
+          performedBy: data.maintenance?.technicianName || 'المحاسب',
+          notes: data.isSuspended 
+            ? `القطع المطلوبة: ${order.requestedParts || 'غير محدد'}`
+            : `حالة السداد: ${data.paymentStatus === 'paid' ? 'مدفوع بالكامل' : data.paymentStatus === 'partial' ? 'مدفوع جزئياً' : 'غير مدفوع'}`,
+        });
+      }
+    }
+
     this.saveToStorage();
     return newSale;
   }
 
-  public updateSale(updatedSale: Sale): void {
+  public updateSale(updatedSale: Sale): Sale {
     const idx = this.sales.findIndex(s => s.id === updatedSale.id);
-    if (idx !== -1) {
-      this.sales[idx] = { ...updatedSale };
-      this.saveToStorage();
+    if (idx === -1) {
+      const { id, ...dataWithoutId } = updatedSale;
+      return this.addSale(dataWithoutId);
     }
+
+    const oldSale = this.sales[idx];
+
+    // 1. Calculate stock deltas for components
+    const stockDeltas: Record<number, number> = {};
+    for (const item of oldSale.items) {
+      if (item.componentId) {
+        stockDeltas[item.componentId] = (stockDeltas[item.componentId] || 0) + item.quantity;
+      }
+    }
+    for (const item of updatedSale.items) {
+      if (item.componentId) {
+        stockDeltas[item.componentId] = (stockDeltas[item.componentId] || 0) - item.quantity;
+      }
+    }
+
+    // Apply stock adjustments
+    for (const [compIdStr, delta] of Object.entries(stockDeltas)) {
+      if (delta !== 0) {
+        const comp = this.components.find(c => c.id === Number(compIdStr));
+        if (comp) {
+          comp.stock_quantity = Math.max(0, comp.stock_quantity + delta);
+        }
+      }
+    }
+
+    const isSusp = Boolean(updatedSale.isSuspended || updatedSale.maintenance?.isSuspended);
+    if (!isSusp) {
+      updatedSale.isSuspended = false;
+      updatedSale.suspensionReason = undefined;
+      updatedSale.requestedParts = undefined;
+      if (updatedSale.maintenance) {
+        updatedSale.maintenance.isSuspended = false;
+        updatedSale.maintenance.suspensionReason = undefined;
+        updatedSale.maintenance.requestedParts = undefined;
+        if (updatedSale.maintenance.status === 'awaiting_part') {
+          updatedSale.maintenance.status = (updatedSale.paidAmount >= updatedSale.totalAmount && updatedSale.totalAmount > 0) ? 'delivered' : 'ready';
+        }
+      }
+    }
+
+    // 2. Update sale record
+    this.sales[idx] = { ...updatedSale };
+
+    // 3. Synchronize linked maintenance order if exists
+    const orderId = updatedSale.maintenanceOrderId || oldSale.maintenanceOrderId;
+    if (orderId) {
+      const order = this.maintenanceOrders.find(o => o.id === orderId);
+      if (order) {
+        order.isSuspended = isSusp;
+        if (isSusp) {
+          order.suspensionReason = updatedSale.suspensionReason || updatedSale.maintenance?.suspensionReason || 'قيد الانتظار';
+          order.requestedParts = updatedSale.requestedParts || updatedSale.maintenance?.requestedParts;
+          order.status = updatedSale.maintenance?.status || 'awaiting_part';
+        } else {
+          order.isSuspended = false;
+          order.suspensionReason = undefined;
+          order.requestedParts = undefined;
+          if (updatedSale.maintenance?.status && updatedSale.maintenance.status !== 'awaiting_part') {
+            order.status = updatedSale.maintenance.status;
+          } else {
+            order.status = (updatedSale.paidAmount >= updatedSale.totalAmount && updatedSale.totalAmount > 0) ? 'delivered' : 'ready';
+          }
+        }
+
+        order.totalAmount = updatedSale.totalAmount;
+        order.paidAmount = updatedSale.paidAmount;
+        order.paymentStatus = updatedSale.paymentStatus;
+        if (order.status === 'delivered') {
+          order.deliveryTimestamp = new Date().toISOString();
+          order.deliveredBy = updatedSale.maintenance?.technicianName || order.deliveredBy || 'المسؤول';
+        }
+        order.updatedAt = new Date().toISOString();
+
+        order.timeline.push({
+          id: (order.timeline.length > 0 ? Math.max(...order.timeline.map(t => t.id)) + 1 : 1),
+          timestamp: new Date().toISOString(),
+          action: isSusp
+            ? `تعديل بيانات الفاتورة المعلقة: ${updatedSale.invoiceNumber}`
+            : `إنهاء تعليق الفاتورة واعتماد الصيانة: ${updatedSale.invoiceNumber}`,
+          newStatus: order.status,
+          performedBy: updatedSale.maintenance?.technicianName || 'شاشة المبيعات',
+          notes: isSusp 
+            ? `السبب: ${order.suspensionReason}${order.requestedParts ? ` | القطع المطلوبة: ${order.requestedParts}` : ''}`
+            : `تم استئناف الفاتورة وإنهاء التعليق بنجاح واعتماد المبلغ: ${updatedSale.totalAmount} د.ل`,
+        });
+      }
+    }
+
+    this.saveToStorage();
+    return this.sales[idx];
   }
 
-  public updateMaintenanceStatus(saleId: number, status: MaintenanceStatus): void {
+  public updateMaintenanceStatus(saleId: number, status: MaintenanceWorkflowStatus | MaintenanceStatus): void {
     const sale = this.sales.find(s => s.id === saleId);
     if (sale && sale.maintenance) {
-      sale.maintenance.status = status;
+      const isAwaitingPart = status === 'awaiting_part';
+      sale.maintenance.status = status as MaintenanceWorkflowStatus;
+      sale.isSuspended = isAwaitingPart;
+      sale.maintenance.isSuspended = isAwaitingPart;
+      if (!isAwaitingPart) {
+        sale.suspensionReason = undefined;
+        sale.requestedParts = undefined;
+        sale.maintenance.suspensionReason = undefined;
+        sale.maintenance.requestedParts = undefined;
+      }
+
       if (status === 'delivered' && !sale.maintenance.deliveryDate) {
         sale.maintenance.deliveryDate = new Date().toISOString().split('T')[0];
         sale.paymentStatus = 'paid';
         sale.paidAmount = sale.totalAmount;
       }
+
+      // Sync with linked maintenance order if exists
+      if (sale.maintenanceOrderId) {
+        const order = this.maintenanceOrders.find(o => o.id === sale.maintenanceOrderId);
+        if (order) {
+          order.status = status as MaintenanceWorkflowStatus;
+          order.isSuspended = isAwaitingPart;
+          if (!isAwaitingPart) {
+            order.suspensionReason = undefined;
+            order.requestedParts = undefined;
+          }
+          if (status === 'delivered') {
+            order.deliveryTimestamp = new Date().toISOString();
+            order.paymentStatus = 'paid';
+            order.paidAmount = sale.totalAmount;
+          }
+          order.updatedAt = new Date().toISOString();
+          order.timeline.push({
+            id: (order.timeline.length > 0 ? Math.max(...order.timeline.map(t => t.id)) + 1 : 1),
+            timestamp: new Date().toISOString(),
+            action: isAwaitingPart ? 'تعليق الفاتورة والعملية من شاشة المبيعات' : `تحديث الحالة من شاشة المبيعات إلى: ${status}`,
+            newStatus: status as MaintenanceWorkflowStatus,
+            performedBy: 'شاشة المبيعات',
+          });
+        }
+      }
+
       this.saveToStorage();
     }
   }
@@ -1029,7 +1236,408 @@ export class ElectroCrossDB {
     }
     this.saveToStorage();
   }
+
+  // ============================================================
+  // --- MAINTENANCE ORDERS (إدارة الصيانة والأمانات) ---
+  // ============================================================
+
+  public generateOrderNumber(): string {
+    const year = new Date().getFullYear();
+    const maxNum = this.maintenanceOrders.length > 0
+      ? Math.max(...this.maintenanceOrders.map(o => {
+          const parts = o.orderNumber.split('-');
+          return parseInt(parts[parts.length - 1]) || 0;
+        }))
+      : 0;
+    const nextNum = (maxNum + 1).toString().padStart(5, '0');
+    return `SR-${year}-${nextNum}`;
+  }
+
+  public getMaintenanceOrders(filter?: { status?: MaintenanceWorkflowStatus | 'all' }): MaintenanceOrder[] {
+    let orders = [...this.maintenanceOrders];
+    if (filter?.status && filter.status !== 'all') {
+      orders = orders.filter(o => o.status === filter.status);
+    }
+    return orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }
+
+  public getMaintenanceOrder(id: number): MaintenanceOrder | null {
+    return this.maintenanceOrders.find(o => o.id === id) || null;
+  }
+
+  public addMaintenanceOrder(data: Omit<MaintenanceOrder, 'id' | 'orderNumber' | 'createdAt' | 'updatedAt' | 'timeline'>): MaintenanceOrder {
+    const nextId = this.maintenanceOrders.length > 0 ? Math.max(...this.maintenanceOrders.map(o => o.id)) + 1 : 1;
+    const now = new Date().toISOString();
+    const orderNumber = this.generateOrderNumber();
+
+    const effectiveStatus: MaintenanceWorkflowStatus = (data.status === 'received' || !data.status) ? 'in_safes' : data.status;
+
+    const firstEvent: MaintenanceOrderTimeline = {
+      id: 1,
+      timestamp: now,
+      action: effectiveStatus === 'under_inspection' 
+        ? 'تم استلام الجهاز والبدء بالفحص المباشر'
+        : `تم استلام الجهاز وإيداعه في الأمانات${data.shelfLocation ? ` (الرف: ${data.shelfLocation})` : ''}`,
+      newStatus: effectiveStatus,
+      performedBy: data.technicianName || 'الموظف المستلم',
+      notes: `رقم أمر الصيانة: ${orderNumber}`,
+    };
+
+    const newOrder: MaintenanceOrder = {
+      ...data,
+      status: effectiveStatus,
+      id: nextId,
+      orderNumber,
+      createdAt: now,
+      updatedAt: now,
+      timeline: [firstEvent],
+    };
+
+    this.maintenanceOrders.unshift(newOrder);
+    this.saveToStorage();
+    return newOrder;
+  }
+
+  public updateMaintenanceOrder(id: number, data: Partial<MaintenanceOrder>): MaintenanceOrder | null {
+    const idx = this.maintenanceOrders.findIndex(o => o.id === id);
+    if (idx === -1) return null;
+    this.maintenanceOrders[idx] = {
+      ...this.maintenanceOrders[idx],
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
+    this.saveToStorage();
+    return this.maintenanceOrders[idx];
+  }
+
+  public changeMaintenanceStatus(
+    id: number,
+    newStatus: MaintenanceWorkflowStatus,
+    performedBy: string,
+    notes?: string
+  ): MaintenanceOrder | null {
+    const order = this.maintenanceOrders.find(o => o.id === id);
+    if (!order) return null;
+
+    const oldStatus = order.status;
+    order.status = newStatus;
+    order.updatedAt = new Date().toISOString();
+
+    const statusLabels: Record<MaintenanceWorkflowStatus, string> = {
+      received: 'تم الاستلام',
+      in_safes: 'في الأمانات',
+      under_inspection: 'قيد الفحص',
+      under_repair: 'قيد الصيانة',
+      awaiting_part: 'بانتظار قطعة',
+      awaiting_approval: 'بانتظار موافقة الزبون',
+      ready: 'جاهز للتسليم',
+      delivered: 'تم التسليم',
+      unrepairable: 'تعذر الإصلاح',
+      returned_no_repair: 'تم الإرجاع بدون إصلاح',
+      rejected_by_customer: 'رفض الزبون الإصلاح',
+    };
+
+    const timelineEntry: MaintenanceOrderTimeline = {
+      id: (order.timeline.length > 0 ? Math.max(...order.timeline.map(t => t.id)) + 1 : 1),
+      timestamp: new Date().toISOString(),
+      action: `تغيير الحالة إلى: ${statusLabels[newStatus]}`,
+      oldStatus: statusLabels[oldStatus],
+      newStatus: statusLabels[newStatus],
+      performedBy,
+      notes,
+    };
+    order.timeline.push(timelineEntry);
+
+    this.saveToStorage();
+    return order;
+  }
+
+  public addPartToMaintenanceOrder(orderId: number, part: Omit<MaintenanceOrderPart, 'id'>): MaintenanceOrder | null {
+    const order = this.maintenanceOrders.find(o => o.id === orderId);
+    if (!order) return null;
+
+    const nextPartId = order.parts.length > 0 ? Math.max(...order.parts.map(p => p.id)) + 1 : 1;
+    order.parts.push({ ...part, id: nextPartId, orderId });
+    this._recalcOrderTotals(order);
+    order.updatedAt = new Date().toISOString();
+    this.saveToStorage();
+    return order;
+  }
+
+  public removePartFromMaintenanceOrder(orderId: number, partId: number): MaintenanceOrder | null {
+    const order = this.maintenanceOrders.find(o => o.id === orderId);
+    if (!order) return null;
+    order.parts = order.parts.filter(p => p.id !== partId);
+    this._recalcOrderTotals(order);
+    order.updatedAt = new Date().toISOString();
+    this.saveToStorage();
+    return order;
+  }
+
+  private _recalcOrderTotals(order: MaintenanceOrder): void {
+    const isBilled = (p: MaintenanceOrderPart) => {
+      if (p.isBilledToCustomer === false) return false;
+      if (p.disposition === 'return_to_stock' || p.disposition === 'damaged' || p.disposition === 'not_billed') return false;
+      return true;
+    };
+
+    const sparePartsBilled = order.parts.filter(p => p.type === 'spare' && isBilled(p));
+    const consumablesBilled = order.parts.filter(p => p.type === 'consumable' && isBilled(p));
+
+    order.partsTotal = sparePartsBilled.reduce((sum, p) => sum + p.totalSalePrice, 0);
+    order.consumablesTotal = consumablesBilled.reduce((sum, p) => sum + p.totalSalePrice, 0);
+
+    // Workshop cost: parts returned to stock don't cost the workshop; damaged parts DO cost the workshop
+    const effectiveCostParts = order.parts.filter(p => p.disposition !== 'return_to_stock');
+    order.totalCost = effectiveCostParts.reduce((sum, p) => sum + p.totalCost, 0);
+
+    order.totalAmount = Math.max(0, order.partsTotal + order.consumablesTotal + order.laborFee - order.discount);
+  }
+
+  public updatePartDisposition(
+    orderId: number,
+    partId: number,
+    disposition: PartDisposition,
+    isBilledToCustomer: boolean,
+    notes?: string
+  ): MaintenanceOrder | null {
+    const order = this.maintenanceOrders.find(o => o.id === orderId);
+    if (!order) return null;
+    const part = order.parts.find(p => p.id === partId);
+    if (!part) return null;
+
+    const oldDisp = part.disposition;
+    part.disposition = disposition;
+    part.isBilledToCustomer = isBilledToCustomer;
+    if (notes) part.dispositionNotes = notes;
+
+    // Handle warehouse stock if return_to_stock
+    if (disposition === 'return_to_stock' && oldDisp !== 'return_to_stock' && part.componentId) {
+      this.updateStock(part.componentId, part.quantity);
+    } else if (oldDisp === 'return_to_stock' && disposition !== 'return_to_stock' && part.componentId) {
+      this.updateStock(part.componentId, -part.quantity);
+    }
+
+    this._recalcOrderTotals(order);
+    order.updatedAt = new Date().toISOString();
+
+    const dispLabels: Record<PartDisposition, string> = {
+      used: 'مركبة بنجاح في الجهاز (محتسبة)',
+      bill_customer: 'محتسبة على العميل',
+      return_to_stock: 'إرجاع إلى المستودع (معفاة للعميل)',
+      damaged: 'تالفة أثناء الاختبار (معفاة للعميل)',
+      not_billed: 'غير محتسبة على العميل',
+    };
+
+    const timelineEntry: MaintenanceOrderTimeline = {
+      id: (order.timeline.length > 0 ? Math.max(...order.timeline.map(t => t.id)) + 1 : 1),
+      timestamp: new Date().toISOString(),
+      action: `تحديد مصير القطعة (${part.partNumber || part.description}): ${dispLabels[disposition] || disposition}`,
+      performedBy: 'الفني',
+      notes,
+    };
+    order.timeline.push(timelineEntry);
+
+    this.saveToStorage();
+    return order;
+  }
+
+  public suspendMaintenanceOrder(
+    orderId: number,
+    reason: string,
+    requestedParts?: string,
+    performedBy: string = 'الفني'
+  ): MaintenanceOrder | null {
+    const order = this.maintenanceOrders.find(o => o.id === orderId);
+    if (!order) return null;
+
+    order.isSuspended = true;
+    order.suspensionReason = reason;
+    order.requestedParts = requestedParts;
+    order.suspendedAt = new Date().toISOString();
+    order.updatedAt = new Date().toISOString();
+
+    if (requestedParts && order.status !== 'awaiting_part') {
+      order.status = 'awaiting_part';
+    }
+
+    const timelineEntry: MaintenanceOrderTimeline = {
+      id: (order.timeline.length > 0 ? Math.max(...order.timeline.map(t => t.id)) + 1 : 1),
+      timestamp: new Date().toISOString(),
+      action: 'تعليق الفاتورة والعملية (قيد الانتظار)',
+      performedBy,
+      notes: `السبب: ${reason}${requestedParts ? ` | القطع المطلوبة: ${requestedParts}` : ''}`,
+    };
+    order.timeline.push(timelineEntry);
+
+    // Sync linked sale if exists
+    const linkedSale = this.sales.find(s => s.maintenanceOrderId === orderId);
+    if (linkedSale) {
+      linkedSale.isSuspended = true;
+      linkedSale.suspensionReason = reason;
+      linkedSale.requestedParts = requestedParts;
+      if (linkedSale.maintenance) {
+        linkedSale.maintenance.isSuspended = true;
+        linkedSale.maintenance.suspensionReason = reason;
+        linkedSale.maintenance.requestedParts = requestedParts;
+        linkedSale.maintenance.status = order.status;
+      }
+    }
+
+    this.saveToStorage();
+    return order;
+  }
+
+  public resumeMaintenanceOrder(
+    orderId: number,
+    performedBy: string = 'الفني',
+    notes?: string
+  ): MaintenanceOrder | null {
+    const order = this.maintenanceOrders.find(o => o.id === orderId);
+    if (!order) return null;
+
+    order.isSuspended = false;
+    order.suspensionReason = undefined;
+    order.requestedParts = undefined;
+    order.updatedAt = new Date().toISOString();
+    if (order.status === 'awaiting_part' || order.status === 'awaiting_approval') {
+      order.status = 'under_repair';
+    }
+
+    const timelineEntry: MaintenanceOrderTimeline = {
+      id: (order.timeline.length > 0 ? Math.max(...order.timeline.map(t => t.id)) + 1 : 1),
+      timestamp: new Date().toISOString(),
+      action: 'استئناف العمل على الفاتورة المعلقة (إعادة لقيد الصيانة)',
+      performedBy,
+      notes,
+    };
+    order.timeline.push(timelineEntry);
+
+    // Sync linked sale if exists
+    const linkedSaleResume = this.sales.find(s => s.maintenanceOrderId === orderId || s.invoiceNumber === `MNT-${order.orderNumber}`);
+    if (linkedSaleResume) {
+      linkedSaleResume.isSuspended = false;
+      linkedSaleResume.suspensionReason = undefined;
+      linkedSaleResume.requestedParts = undefined;
+      if (linkedSaleResume.maintenance) {
+        linkedSaleResume.maintenance.isSuspended = false;
+        linkedSaleResume.maintenance.suspensionReason = undefined;
+        linkedSaleResume.maintenance.requestedParts = undefined;
+        linkedSaleResume.maintenance.status = order.status;
+      }
+    }
+
+    this.saveToStorage();
+    return order;
+  }
+
+  public confirmDelivery(
+    orderId: number,
+    paymentData: { paidAmount: number; paymentMethod: 'cash' | 'transfer' | 'card'; deliveredBy: string; notes?: string }
+  ): MaintenanceOrder | null {
+    const order = this.maintenanceOrders.find(o => o.id === orderId);
+    if (!order) return null;
+
+    // Deduct inventory for spare parts from warehouse (excluding parts returned to stock)
+    for (const part of order.parts) {
+      if (part.type === 'spare' && part.componentId && part.disposition !== 'return_to_stock') {
+        const comp = this.components.find(c => c.id === part.componentId);
+        if (comp) {
+          comp.stock_quantity = Math.max(0, comp.stock_quantity - part.quantity);
+        }
+      }
+    }
+
+    const now = new Date().toISOString();
+    order.paidAmount = paymentData.paidAmount;
+    order.paymentStatus = paymentData.paidAmount >= order.totalAmount ? 'paid' : (paymentData.paidAmount > 0 ? 'partial' : 'unpaid');
+    order.paymentMethod = paymentData.paymentMethod;
+    order.deliveredBy = paymentData.deliveredBy;
+    order.deliveryTimestamp = now;
+    order.status = 'delivered';
+    order.isSuspended = false;
+    order.suspensionReason = undefined;
+    order.requestedParts = undefined;
+    order.updatedAt = now;
+
+    // Sync linked sale if exists
+    const linkedSaleDelivered = this.sales.find(s => s.maintenanceOrderId === orderId || s.invoiceNumber === `MNT-${order.orderNumber}`);
+    if (linkedSaleDelivered) {
+      linkedSaleDelivered.isSuspended = false;
+      linkedSaleDelivered.suspensionReason = undefined;
+      linkedSaleDelivered.requestedParts = undefined;
+      linkedSaleDelivered.paidAmount = paymentData.paidAmount;
+      linkedSaleDelivered.paymentStatus = order.paymentStatus;
+      if (linkedSaleDelivered.maintenance) {
+        linkedSaleDelivered.maintenance.isSuspended = false;
+        linkedSaleDelivered.maintenance.suspensionReason = undefined;
+        linkedSaleDelivered.maintenance.requestedParts = undefined;
+        linkedSaleDelivered.maintenance.status = 'delivered';
+      }
+    }
+
+    const timelineEntry: MaintenanceOrderTimeline = {
+      id: (order.timeline.length > 0 ? Math.max(...order.timeline.map(t => t.id)) + 1 : 1),
+      timestamp: now,
+      action: 'تم تسليم الجهاز للزبون',
+      oldStatus: 'جاهز للتسليم',
+      newStatus: 'تم التسليم',
+      performedBy: paymentData.deliveredBy,
+      notes: paymentData.notes,
+    };
+    order.timeline.push(timelineEntry);
+
+    this.saveToStorage();
+    return order;
+  }
+
+  public collectMaintenancePayment(orderId: number, amount: number, notes?: string): MaintenanceOrder | null {
+    const order = this.maintenanceOrders.find(o => o.id === orderId);
+    if (!order) return null;
+    const newPaid = Math.min(order.totalAmount, Math.max(0, order.paidAmount + amount));
+    order.paidAmount = newPaid;
+    order.paymentStatus = newPaid >= order.totalAmount ? 'paid' : (newPaid > 0 ? 'partial' : 'unpaid');
+    order.updatedAt = new Date().toISOString();
+
+    const timelineEntry: MaintenanceOrderTimeline = {
+      id: (order.timeline.length > 0 ? Math.max(...order.timeline.map(t => t.id)) + 1 : 1),
+      timestamp: new Date().toISOString(),
+      action: `تحصيل دفعة: ${amount} د.ل`,
+      performedBy: 'الصندوق',
+      notes,
+    };
+    order.timeline.push(timelineEntry);
+
+    this.saveToStorage();
+    return order;
+  }
+
+  public deleteMaintenanceOrder(id: number): void {
+    this.maintenanceOrders = this.maintenanceOrders.filter(o => o.id !== id);
+    this.saveToStorage();
+  }
+
+  public getMaintenanceStats(): MaintenanceStats {
+    const today = new Date().toISOString().split('T')[0];
+    const activeOrders = this.maintenanceOrders.filter(o =>
+      o.status !== 'delivered' && o.status !== 'returned_no_repair' && o.status !== 'rejected_by_customer'
+    );
+    return {
+      totalOrders: this.maintenanceOrders.length,
+      inSafes: this.maintenanceOrders.filter(o => o.status === 'in_safes' || o.status === 'received').length,
+      underInspection: this.maintenanceOrders.filter(o => o.status === 'under_inspection').length,
+      underRepair: this.maintenanceOrders.filter(o => o.status === 'under_repair').length,
+      awaitingPart: this.maintenanceOrders.filter(o => o.status === 'awaiting_part').length,
+      awaitingApproval: this.maintenanceOrders.filter(o => o.status === 'awaiting_approval').length,
+      ready: this.maintenanceOrders.filter(o => o.status === 'ready').length,
+      deliveredToday: this.maintenanceOrders.filter(o => o.status === 'delivered' && (o.deliveryTimestamp || '').startsWith(today)).length,
+      suspendedCount: this.maintenanceOrders.filter(o => o.isSuspended || o.status === 'awaiting_part').length,
+      totalRevenue: this.maintenanceOrders.filter(o => o.status === 'delivered').reduce((sum, o) => sum + o.totalAmount, 0),
+      totalUnpaid: activeOrders.reduce((sum, o) => sum + (o.totalAmount - o.paidAmount), 0),
+    };
+  }
 }
+
 
 // Global instance
 export const dbInstance = new ElectroCrossDB();

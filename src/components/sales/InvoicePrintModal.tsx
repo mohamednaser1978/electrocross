@@ -183,7 +183,10 @@ export const InvoicePrintModal: React.FC<InvoicePrintModalProps> = ({
                     <span className="font-bold px-1.5 py-0.5 rounded text-[10px] bg-slate-200 text-slate-800">
                       {sale.maintenance.status === 'delivered' ? 'تم التسليم' :
                        sale.maintenance.status === 'ready' ? 'جاهز للتسليم' :
-                       sale.maintenance.status === 'in_progress' ? 'قيد الإصلاح' : 'قيد الفحص'}
+                       sale.maintenance.status === 'under_repair' || (sale.maintenance.status as string) === 'in_progress' ? 'قيد الصيانة والإصلاح' :
+                       sale.maintenance.status === 'awaiting_part' ? 'بانتظار قطعة' :
+                       sale.maintenance.status === 'awaiting_approval' ? 'بانتظار موافقة' :
+                       sale.maintenance.status === 'under_inspection' ? 'قيد الفحص والتشخيص' : 'في الأمانات'}
                     </span>
                   </div>
                   <div className="font-bold text-slate-900 text-xs">

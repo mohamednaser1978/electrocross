@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { 
   Zap, Plus, ChevronDown, Cpu, Tv, Link2, Shuffle, Sun, Moon, 
-  Settings, Database, ShoppingBag, Wrench, Truck, UserPlus, Building2, UserCheck
+  Settings, Database, ShoppingBag, Wrench, Truck, UserPlus, Building2, UserCheck, Menu, Package
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -13,6 +13,7 @@ interface HeaderProps {
   onOpenBackup: () => void;
   onOpenAddDirectSale: () => void;
   onOpenAddMaintenanceSale: () => void;
+  onOpenNewMaintenanceOrder?: () => void;
   onOpenAddPurchase: () => void;
   onOpenAddCustomer: () => void;
   onOpenAddSupplier: () => void;
@@ -21,6 +22,10 @@ interface HeaderProps {
   onOpenAddDevice: () => void;
   onOpenAddCompatibility: () => void;
   onOpenAddEquivalent: () => void;
+  onToggleMobileMenu?: () => void;
+  onToggleSidebarCollapse?: () => void;
+  isSidebarCollapsed?: boolean;
+  activeTabLabel?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -32,6 +37,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenBackup,
   onOpenAddDirectSale,
   onOpenAddMaintenanceSale,
+  onOpenNewMaintenanceOrder,
   onOpenAddPurchase,
   onOpenAddCustomer,
   onOpenAddSupplier,
@@ -40,6 +46,10 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAddDevice,
   onOpenAddCompatibility,
   onOpenAddEquivalent,
+  onToggleMobileMenu,
+  onToggleSidebarCollapse,
+  isSidebarCollapsed,
+  activeTabLabel,
 }) => {
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
@@ -59,28 +69,54 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 shadow-xl transition-colors duration-200 print:hidden">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
+    <header className="sticky top-0 z-30 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 shadow-md transition-colors duration-200 print:hidden">
+      <div className="w-full px-4 sm:px-6 py-2.5">
         <div className="flex items-center justify-between gap-3">
-          {/* Brand & Workshop Identity (Shop Name from Settings) */}
+          {/* Sidebar Toggle & Active Section Identity */}
           <div className="flex items-center gap-3">
-            <div className="relative flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-br from-cyan-500 via-blue-600 to-indigo-600 text-white shadow-lg shadow-cyan-500/25 shrink-0">
-              <Zap className="w-6 h-6" />
-              <div className="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-slate-900 animate-pulse" />
-            </div>
+            {/* Mobile Hamburger Drawer Trigger */}
+            <button
+              type="button"
+              onClick={onToggleMobileMenu}
+              className="lg:hidden p-2 text-slate-300 hover:text-white rounded-xl bg-slate-800/80 hover:bg-slate-700 transition cursor-pointer border border-slate-700/60"
+              title="فتح القائمة الجانبية"
+              aria-label="القائمة الجانبية"
+            >
+              <Menu className="w-5 h-5 text-cyan-400" />
+            </button>
+
+            {/* Desktop Collapse / Expand Toggle */}
+            <button
+              type="button"
+              onClick={onToggleSidebarCollapse}
+              className="hidden lg:flex p-2 text-slate-400 hover:text-cyan-400 rounded-xl hover:bg-slate-800/80 transition cursor-pointer border border-slate-800"
+              title={isSidebarCollapsed ? 'توسيع القائمة الجانبية' : 'طي القائمة الجانبية'}
+              aria-label="تبديل القائمة الجانبية"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
 
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-lg sm:text-xl font-black tracking-tight text-white font-sans">
-                  {shopName || 'المتحكمات الكهربائية'}
-                </span>
-                <span className="text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-mono hidden sm:inline-block">
-                  ElectroCross Pro
-                </span>
+              <div className="flex items-center gap-2.5">
+                <div className="hidden sm:flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 shadow-md shadow-cyan-900/40 shrink-0">
+                  <Zap className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-base sm:text-xl font-black tracking-tight bg-gradient-to-l from-cyan-300 via-white to-slate-100 bg-clip-text text-transparent font-sans">
+                      {shopName || 'المتحكمات الكهربائية'}
+                    </span>
+                    {activeTabLabel && (
+                      <span className="text-[10px] font-bold tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 font-mono hidden md:inline-block">
+                        {activeTabLabel}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 hidden sm:block truncate max-w-xs lg:max-w-md font-medium">
+                    {subTitle || 'منظومة إدارة توافقية وبدائل القطع الإلكترونية والمبيعات والصيانة'}
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-slate-400 hidden sm:block truncate max-w-md">
-                {subTitle || 'منظومة إدارة توافقية وبدائل القطع الإلكترونية والمبيعات والصيانة'}
-              </p>
             </div>
           </div>
 
@@ -186,6 +222,22 @@ export const Header: React.FC<HeaderProps> = ({
                       </div>
                       <span className="text-[10px] text-slate-500 font-mono">Repair</span>
                     </button>
+
+                    {onOpenNewMaintenanceOrder && (
+                      <button
+                        onClick={() => {
+                          setIsAddMenuOpen(false);
+                          onOpenNewMaintenanceOrder();
+                        }}
+                        className="w-full text-right px-3 py-2 rounded-lg text-xs font-semibold text-slate-200 hover:bg-orange-950 hover:text-orange-300 transition flex items-center justify-between group cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <Package className="w-4 h-4 text-orange-400 group-hover:scale-110 transition-transform" />
+                          <span>استلام جهاز للصيانة والأمانات</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-mono">Intake</span>
+                      </button>
+                    )}
 
                     <div className="my-1 border-t border-slate-800" />
 

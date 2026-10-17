@@ -2,11 +2,13 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { dbInstance } from './db/sqliteEngine';
 import { 
   Component, Device, ComponentDetail, DeviceDetail, 
-  WorkshopSettings, Customer, Supplier, Purchase, Sale, MaintenanceStatus, Technician 
+  WorkshopSettings, Customer, Supplier, Purchase, Sale, MaintenanceStatus, Technician,
+  MaintenanceWorkflowStatus
 } from './db/types';
 
 import { Header } from './components/Header';
-import { NavigationTabs, MainTabType } from './components/NavigationTabs';
+import { Sidebar } from './components/Sidebar';
+import { MainTabType } from './components/NavigationTabs';
 import { StatsBar } from './components/StatsBar';
 import { SearchBar } from './components/SearchBar';
 import { ResultsDashboard } from './components/ResultsDashboard';
@@ -30,6 +32,7 @@ import { AddSupplierModal } from './components/suppliers/AddSupplierModal';
 import { SettingsView } from './components/settings/SettingsView';
 import { AddTechnicianModal } from './components/technicians/AddTechnicianModal';
 import { ReportsDashboard } from './components/reports/ReportsDashboard';
+import { MaintenanceDashboard } from './components/maintenance/MaintenanceDashboard';
 
 import { ComponentDetailModal } from './components/ComponentDetailModal';
 import { DeviceDetailModal } from './components/DeviceDetailModal';
@@ -39,10 +42,36 @@ import { AddEditComponentModal } from './components/AddEditComponentModal';
 import { AddEditDeviceModal } from './components/AddEditDeviceModal';
 import { AddCompatibilityModal } from './components/AddCompatibilityModal';
 import { AddEquivalentModal } from './components/AddEquivalentModal';
+import { Cpu } from 'lucide-react';
 
 export default function App() {
-  // Main Tab Navigation: catalog | sales | purchases | customers | suppliers | settings
+  // Main Tab Navigation: catalog | maintenance | sales | purchases | customers | suppliers | reports | settings
   const [activeMainTab, setActiveMainTab] = useState<MainTabType>('catalog');
+
+  // Sidebar responsive collapse and drawer states
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    return localStorage.getItem('electrocross_sidebar_collapsed') === 'true';
+  });
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  const handleToggleSidebarCollapse = useCallback(() => {
+    setIsSidebarCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('electrocross_sidebar_collapsed', String(next));
+      return next;
+    });
+  }, []);
+
+  const activeTabLabels: Record<MainTabType, string> = {
+    catalog: 'المستودع وبدائل القطع',
+    maintenance: 'الصيانة والأمانات',
+    sales: 'المبيعات المباشرة',
+    purchases: 'المشتريات والتوريد',
+    customers: 'العملاء والفنيين',
+    suppliers: 'الموردون والمصادر',
+    reports: 'التقارير الشاملة',
+    settings: 'إعدادات الورشة',
+  };
 
   // Trigger re-render on database changes
   const [dbVersion, setDbVersion] = useState(0);
@@ -91,6 +120,16 @@ export default function App() {
     return dbInstance.getTechnicians();
   }, [dbVersion]);
 
+  const maintenanceOrders = useMemo(() => {
+    return dbInstance.getMaintenanceOrders();
+  }, [dbVersion]);
+
+  const activeMaintenanceCount = useMemo(() => {
+    return maintenanceOrders.filter(o => 
+      o.status !== 'delivered' && o.status !== 'returned_no_repair' && o.status !== 'rejected_by_customer'
+    ).length;
+  }, [maintenanceOrders]);
+
   // Search & Filter State for Catalog Tab
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState<'all' | 'components' | 'devices' | 'low_stock'>('all');
@@ -122,6 +161,7 @@ export default function App() {
   // New Modals: Sales, Purchases, Customers, Suppliers, Printing
   const [isAddDirectSaleOpen, setIsAddDirectSaleOpen] = useState(false);
   const [isAddMaintenanceSaleOpen, setIsAddMaintenanceSaleOpen] = useState(false);
+  const [editingSale, setEditingSale] = useState<Sale | null>(null);
   const [isAddPurchaseOpen, setIsAddPurchaseOpen] = useState(false);
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false);
   const [isAddSupplierOpen, setIsAddSupplierOpen] = useState(false);
@@ -129,6 +169,7 @@ export default function App() {
   const [printingSale, setPrintingSale] = useState<Sale | null>(null);
   const [collectingPaymentSale, setCollectingPaymentSale] = useState<Sale | null>(null);
   const [payingSupplierPurchase, setPayingSupplierPurchase] = useState<Purchase | null>(null);
+  const [requestNewMaintenanceOrder, setRequestNewMaintenanceOrder] = useState(false);
 
   // Search Results for Catalog
   const searchResults = useMemo(() => {
@@ -177,7 +218,14 @@ export default function App() {
     setPrintingSale(created);
   };
 
-  const handleUpdateMaintenanceStatus = (saleId: number, status: MaintenanceStatus) => {
+  const handleUpdateSale = (updatedSale: Sale) => {
+    const saved = dbInstance.updateSale(updatedSale);
+    refreshDb();
+    setEditingSale(null);
+    setPrintingSale(saved);
+  };
+
+  const handleUpdateMaintenanceStatus = (saleId: number, status: MaintenanceWorkflowStatus | MaintenanceStatus) => {
     dbInstance.updateMaintenanceStatus(saleId, status);
     refreshDb();
   };
@@ -301,72 +349,117 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans transition-colors duration-200 print:bg-white print:text-slate-900 print:min-h-0" dir="rtl">
-      {/* Top Header with Customizable Workshop Name */}
-      <Header
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-row font-sans transition-colors duration-200 print:bg-white print:text-slate-900 print:min-h-0 overflow-x-hidden" dir="rtl">
+      {/* 1. Collapsible Sidebar (Right Side in RTL) */}
+      <Sidebar
+        activeTab={activeMainTab}
+        onTabChange={setActiveMainTab}
+        isCollapsed={isSidebarCollapsed}
+        onToggleCollapse={handleToggleSidebarCollapse}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        lowStockCount={stats.lowStockCount}
+        activeRepairsCount={financialStats.activeMaintenanceCount}
+        maintenanceActiveCount={activeMaintenanceCount}
+        shopName={settings.shopName}
         theme={theme}
         onToggleTheme={handleToggleTheme}
-        shopName={settings.shopName}
-        subTitle={settings.subTitle}
-        onOpenSettings={() => setActiveMainTab('settings')}
-        onOpenBackup={() => setIsBackupModalOpen(true)}
-        onOpenAddDirectSale={() => setIsAddDirectSaleOpen(true)}
-        onOpenAddMaintenanceSale={() => setIsAddMaintenanceSaleOpen(true)}
-        onOpenAddPurchase={() => setIsAddPurchaseOpen(true)}
-        onOpenAddCustomer={() => {
-          setEditingCustomer(null);
-          setIsAddCustomerOpen(true);
-        }}
-        onOpenAddSupplier={() => {
-          setEditingSupplier(null);
-          setIsAddSupplierOpen(true);
-        }}
-        onOpenAddTechnician={() => {
-          setEditingTechnician(null);
-          setIsAddTechnicianOpen(true);
-        }}
-        onOpenAddComponent={() => {
-          setEditingComponent(null);
-          setIsAddComponentOpen(true);
-        }}
-        onOpenAddDevice={() => {
-          setEditingDevice(null);
-          setIsAddDeviceOpen(true);
-        }}
-        onOpenAddCompatibility={() => {
-          setLinkInitialComponentId(undefined);
-          setLinkInitialDeviceId(undefined);
-          setIsAddCompatibilityOpen(true);
-        }}
-        onOpenAddEquivalent={() => {
-          setEquivInitialOriginalId(undefined);
-          setIsAddEquivalentOpen(true);
-        }}
       />
 
-      {/* Main Workshop Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 space-y-6 print:hidden">
-        {/* Navigation Tabs (Catalog, Sales, Purchases, Customers, Suppliers, Settings) */}
-        <NavigationTabs
-          activeTab={activeMainTab}
-          onTabChange={setActiveMainTab}
-          lowStockCount={stats.lowStockCount}
-          activeRepairsCount={financialStats.activeMaintenanceCount}
+      {/* 2. Main Application Workspace Column */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen overflow-x-hidden">
+        {/* Top Header with Customizable Workshop Name & Actions */}
+        <Header
+          theme={theme}
+          onToggleTheme={handleToggleTheme}
           shopName={settings.shopName}
+          subTitle={settings.subTitle}
+          activeTabLabel={activeTabLabels[activeMainTab]}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebarCollapse={handleToggleSidebarCollapse}
+          onToggleMobileMenu={() => setIsMobileSidebarOpen(prev => !prev)}
+          onOpenSettings={() => setActiveMainTab('settings')}
+          onOpenBackup={() => setIsBackupModalOpen(true)}
+          onOpenAddDirectSale={() => setIsAddDirectSaleOpen(true)}
+          onOpenAddMaintenanceSale={() => setIsAddMaintenanceSaleOpen(true)}
+          onOpenNewMaintenanceOrder={() => {
+            setActiveMainTab('maintenance');
+            setRequestNewMaintenanceOrder(true);
+          }}
+          onOpenAddPurchase={() => setIsAddPurchaseOpen(true)}
+          onOpenAddCustomer={() => {
+            setEditingCustomer(null);
+            setIsAddCustomerOpen(true);
+          }}
+          onOpenAddSupplier={() => {
+            setEditingSupplier(null);
+            setIsAddSupplierOpen(true);
+          }}
+          onOpenAddTechnician={() => {
+            setEditingTechnician(null);
+            setIsAddTechnicianOpen(true);
+          }}
+          onOpenAddComponent={() => {
+            setEditingComponent(null);
+            setIsAddComponentOpen(true);
+          }}
+          onOpenAddDevice={() => {
+            setEditingDevice(null);
+            setIsAddDeviceOpen(true);
+          }}
+          onOpenAddCompatibility={() => {
+            setLinkInitialComponentId(undefined);
+            setLinkInitialDeviceId(undefined);
+            setIsAddCompatibilityOpen(true);
+          }}
+          onOpenAddEquivalent={() => {
+            setEquivInitialOriginalId(undefined);
+            setIsAddEquivalentOpen(true);
+          }}
         />
 
-        {/* TAB 1: CATALOG & CROSS REFERENCE (Original Core Engine) */}
-        {activeMainTab === 'catalog' && (
-          <div className="space-y-6 animate-fade-in">
-            {/* Workshop Quick Stats Bar */}
-            <StatsBar
-              stats={stats}
-              activeFilter={activeFilter}
-              onFilterChange={(filter) => {
-                setActiveFilter(filter);
-                setSearchQuery('');
-              }}
-            />
+        {/* Main Workshop Content Area */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 space-y-6 print:hidden">
+          {/* Welcome Banner on Catalog Screen (Image 2 style) */}
+          {activeMainTab === 'catalog' && (
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-blue-950/70 via-slate-900/80 to-slate-950 border border-blue-800/40 p-5 sm:p-6 shadow-xl backdrop-blur-md animate-fade-in">
+              <div className="absolute top-0 right-0 w-80 h-80 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3.5">
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white flex items-center justify-center shadow-lg shadow-cyan-500/25 shrink-0">
+                    <Cpu className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-black text-white tracking-tight">
+                      مرحباً بك في نظام ورشة الإصلاحات الإلكترونية
+                    </h2>
+                    <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
+                      إدارة ذكية لقطع الغيار والمكونات الإلكترونية، فحص التوافقية والبدائل، والمبيعات والصيانة
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 self-start sm:self-auto bg-slate-900/80 border border-slate-700/60 px-3 py-1.5 rounded-xl text-xs">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="font-bold text-slate-300">النظام متصل</span>
+                  <span className="text-slate-500">•</span>
+                  <span className="text-cyan-400 font-mono text-[11px]">{settings.shopName || 'الفرع الرئيسي'}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 1: CATALOG & CROSS REFERENCE (Original Core Engine) */}
+          {activeMainTab === 'catalog' && (
+            <div className="space-y-6 animate-fade-in">
+              {/* Workshop Quick Stats Bar */}
+              <StatsBar
+                stats={stats}
+                activeFilter={activeFilter}
+                onFilterChange={(filter) => {
+                  setActiveFilter(filter);
+                  setSearchQuery('');
+                }}
+              />
 
             {/* Dual Instant Search Engine */}
             <SearchBar
@@ -404,6 +497,20 @@ export default function App() {
           </div>
         )}
 
+        {/* TAB 1.5: MAINTENANCE & SAFES WORKFLOW */}
+        {activeMainTab === 'maintenance' && (
+          <div className="animate-fade-in">
+            <MaintenanceDashboard
+              settings={settings}
+              onRefresh={refreshDb}
+              dbVersion={dbVersion}
+              requestNewOrder={requestNewMaintenanceOrder}
+              onNewOrderRequestHandled={() => setRequestNewMaintenanceOrder(false)}
+              onEditSale={(sale) => setEditingSale(sale)}
+            />
+          </div>
+        )}
+
         {/* TAB 2: SALES & MAINTENANCE (Direct Sales & Maintenance Orders) */}
         {activeMainTab === 'sales' && (
           <div className="animate-fade-in">
@@ -412,7 +519,11 @@ export default function App() {
               financialStats={financialStats}
               settings={settings}
               onOpenAddDirectSale={() => setIsAddDirectSaleOpen(true)}
-              onOpenAddMaintenanceSale={() => setIsAddMaintenanceSaleOpen(true)}
+              onOpenAddMaintenanceSale={() => {
+                setEditingSale(null);
+                setIsAddMaintenanceSaleOpen(true);
+              }}
+              onEditSale={(sale) => setEditingSale(sale)}
               onPrintSale={(s) => setPrintingSale(s)}
               onCollectPayment={(s) => setCollectingPaymentSale(s)}
               onUpdateStatus={handleUpdateMaintenanceStatus}
@@ -528,6 +639,7 @@ export default function App() {
           </div>
         </div>
       </footer>
+      </div>
 
       {/* ALL MODALS */}
 
@@ -589,13 +701,19 @@ export default function App() {
 
       {/* 4. Maintenance-Linked Sale Modal */}
       <AddMaintenanceSaleModal
-        isOpen={isAddMaintenanceSaleOpen}
-        onClose={() => setIsAddMaintenanceSaleOpen(false)}
+        isOpen={isAddMaintenanceSaleOpen || !!editingSale}
+        saleToEdit={editingSale}
+        onClose={() => {
+          setIsAddMaintenanceSaleOpen(false);
+          setEditingSale(null);
+        }}
         onSave={handleSaveSale}
+        onUpdate={handleUpdateSale}
         components={components}
         customers={customers}
         currency={settings.currency}
         technicians={technicians}
+        maintenanceOrders={maintenanceOrders}
         onOpenAddTechnician={() => {
           setEditingTechnician(null);
           setIsAddTechnicianOpen(true);

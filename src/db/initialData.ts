@@ -1105,7 +1105,7 @@ export const INITIAL_SALES: Sale[] = [
       extraServicesDescription: 'تعديل حماية تيار مسطرة الليدات (Current Limiter Modification) لتقليل إجهاد الباور وتطويل عمر الشاشة',
       extraServicesFee: 35,
       extraExpensesCost: 8,
-      status: 'in_progress',
+      status: 'under_repair',
       receivedDate: '2026-04-02'
     },
     items: [
