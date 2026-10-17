@@ -102,11 +102,11 @@ export const NewMaintenanceOrderModal: React.FC<Props> = ({ onClose, onSaved }) 
   const labelCls = "block text-xs font-semibold text-slate-400 mb-1.5";
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" dir="rtl">
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-50 flex items-start justify-center p-3 sm:p-4 pt-3 sm:pt-6 md:pt-8 overflow-y-auto" dir="rtl">
+      <div className="fixed inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[calc(100vh-2.5rem)] sm:max-h-[calc(100vh-4rem)] overflow-hidden flex flex-col animate-fade-in my-auto sm:my-0">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-800 bg-gradient-to-l from-cyan-900/30 to-transparent shrink-0">
+        <div className="flex items-center justify-between px-5 py-3.5 sm:py-4 border-b border-slate-800 bg-gradient-to-l from-cyan-900/30 via-slate-900 to-transparent shrink-0">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-cyan-500/20 rounded-xl">
               <Wrench className="w-5 h-5 text-cyan-400" />
@@ -116,13 +116,13 @@ export const NewMaintenanceOrderModal: React.FC<Props> = ({ onClose, onSaved }) 
               <p className="text-xs text-slate-400">الخطوة {step} من 2</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all">
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-all cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Progress */}
-        <div className="px-5 pt-4 shrink-0">
+        <div className="px-5 pt-3 pb-1 shrink-0">
           <div className="flex gap-2 mb-1">
             {[1,2].map(s => (
               <div key={s} className={`flex-1 h-1.5 rounded-full transition-all ${s <= step ? 'bg-cyan-500' : 'bg-slate-700'}`} />
@@ -135,7 +135,7 @@ export const NewMaintenanceOrderModal: React.FC<Props> = ({ onClose, onSaved }) 
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3.5">
           {step === 1 && (
             <>
               <div className="grid grid-cols-2 gap-4">
@@ -311,11 +311,11 @@ export const NewMaintenanceOrderModal: React.FC<Props> = ({ onClose, onSaved }) 
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between p-5 border-t border-slate-800 shrink-0">
+        <div className="flex items-center justify-between px-5 py-3.5 sm:py-4 border-t border-slate-800 bg-slate-950/40 shrink-0">
           {step === 1 ? (
-            <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">إلغاء</button>
+            <button onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors cursor-pointer">إلغاء</button>
           ) : (
-            <button onClick={() => setStep(1)} className="flex items-center gap-2 px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">
+            <button onClick={() => setStep(1)} className="flex items-center gap-2 px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors cursor-pointer">
               <ChevronRight className="w-4 h-4" /> رجوع
             </button>
           )}
@@ -324,7 +324,7 @@ export const NewMaintenanceOrderModal: React.FC<Props> = ({ onClose, onSaved }) 
             <button
               onClick={() => setStep(2)}
               disabled={!canGoNext}
-              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-l from-cyan-600 to-blue-600 text-white text-sm font-bold rounded-xl hover:from-cyan-500 hover:to-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-l from-cyan-600 to-blue-600 text-white text-sm font-bold rounded-xl hover:from-cyan-500 hover:to-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md shadow-cyan-950 cursor-pointer"
             >
               التالي: بيانات الجهاز <ChevronLeft className="w-4 h-4" />
             </button>
@@ -332,7 +332,7 @@ export const NewMaintenanceOrderModal: React.FC<Props> = ({ onClose, onSaved }) 
             <button
               onClick={handleSave}
               disabled={!canSave || saving}
-              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-l from-emerald-600 to-teal-600 text-white text-sm font-bold rounded-xl hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-l from-emerald-600 to-teal-600 text-white text-sm font-bold rounded-xl hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-md shadow-emerald-950 cursor-pointer"
             >
               {saving ? '⏳ جاري الحفظ...' : '✅ حفظ واستلام الجهاز'}
             </button>
